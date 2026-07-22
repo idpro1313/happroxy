@@ -293,6 +293,7 @@ bash scripts/generate-routing-deeplink.sh
 | `migrate-phase2.sh`            | Отключить SS/VMess/HY2 после проверки VLESS     |
 | `install.sh`                   | Первичная установка (интерактивно: IP + домен)  |
 | `setup-https.sh`               | Домен + Traefik labels + HTTPS subURI           |
+| `list-clients.sh`             | Sub-URL для каждого клиента (email → subId)               |
 | `restore-phase1.sh`            | **Вернуть фазу 1** (SS + VMess, VLESS выкл.)             |
 | `repair-panel.sh`              | SQLite: subListen, subURI, удаление Trojan:8443 |
 | `show-urls.sh`                 | Panel + subscription URL (webBasePath)          |
