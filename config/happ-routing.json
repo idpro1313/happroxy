@@ -1,0 +1,19 @@
+{
+  "Name": "FamilySplit",
+  "GlobalProxy": "true",
+  "RemoteDns": "1.1.1.1",
+  "DomesticDns": "8.8.8.8",
+  "DirectSites": [],
+  "DirectIp": [
+    "geoip:private",
+    "geoip:ru"
+  ],
+  "ProxySites": [],
+  "ProxyIp": [],
+  "BlockSites": [],
+  "BlockIp": [],
+  "DomainStrategy": "IPIfNonMatch",
+  "FakeDns": "false",
+  "RouteOrder": "block-direct-proxy",
+  "RemoteRouting": "true"
+}

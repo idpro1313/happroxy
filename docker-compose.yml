@@ -1,0 +1,25 @@
+services:
+  3xui:
+    image: ghcr.io/mhsanaei/3x-ui:latest
+    container_name: happroxy_3xui
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    mem_limit: 768m
+    environment:
+      XRAY_VMESS_AEAD_FORCED: "false"
+      XUI_ENABLE_FAIL2BAN: "true"
+      XUI_MEMORY_LIMIT: "512"
+      XUI_PORT: "${PANEL_PORT:-38471}"
+    volumes:
+      - ./db:/etc/x-ui
+      - ./cert:/root/cert
+    tty: true
+    ports:
+      - "${PANEL_PORT:-38471}:${PANEL_PORT:-38471}"
+      - "${HY2_PORT:-4443}:${HY2_PORT:-4443}/udp"
+      - "${HY2_PORT:-4443}:${HY2_PORT:-4443}/tcp"
+      - "${SS_PORT:-8388}:${SS_PORT:-8388}/tcp"
+      - "${VMESS_PORT:-16888}:${VMESS_PORT:-16888}/tcp"
+      - "${TROJAN_PORT:-8443}:${TROJAN_PORT:-8443}/tcp"
+    restart: unless-stopped
