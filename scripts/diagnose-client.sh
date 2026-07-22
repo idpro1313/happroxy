@@ -128,13 +128,30 @@ check_subscription() {
 
   if [[ -n "${SERVER_IP}" ]] && grep -q "${SERVER_IP}" <<<"${decoded}"; then
     log "Subscription contains public IP ${SERVER_IP} — OK"
+  elif [[ -n "${PANEL_DOMAIN:-}" ]] && grep -q "${PANEL_DOMAIN}" <<<"${decoded}"; then
+    log "Subscription contains domain ${PANEL_DOMAIN} — OK"
   elif grep -qE '127\.0\.0\.1|localhost' <<<"${decoded}"; then
     fail "Subscription contains 127.0.0.1 — run: sudo bash scripts/repair-panel.sh, then refresh Happ"
   else
     warn "Public IP ${SERVER_IP:-?} not found in subscription links"
   fi
 
-  grep -qE 'vless://' <<<"${decoded}" && log "Found VLESS link" || warn "No vless:// link in subscription (run: sudo bash scripts/setup-vless-reality.sh)"
+  grep -qE 'vless://' <<<"${decoded}" && log "Found VLESS link" || warn "No vless:// link — run: sudo bash scripts/setup-vless-reality.sh"
+  if [[ -n "${db}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+    local vless_links
+    vless_links="$(sqlite3 "${db}" "
+      SELECT COUNT(*)
+      FROM client_inbounds ci
+      JOIN inbounds i ON i.id = ci.inbound_id
+      JOIN clients c ON c.id = ci.client_id
+      WHERE i.port=${VLESS_PORT} AND c.sub_id='${sub_id}';
+    " 2>/dev/null || echo 0)"
+    if [[ "${vless_links}" -eq 0 ]] && ! grep -qE 'vless://' <<<"${decoded}"; then
+      warn "Client ${sub_id} not linked to vless-reality in client_inbounds — re-run setup-vless-reality.sh"
+    elif [[ "${vless_links}" -gt 0 ]]; then
+      log "client_inbounds: ${sub_id} → vless-reality (${vless_links})"
+    fi
+  fi
   if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
     grep -qE 'hy2://|hysteria2://' <<<"${decoded}" && log "Found Hysteria2 link" || warn "No hy2:// link in subscription"
     grep -q 'ss://' <<<"${decoded}" && log "Found Shadowsocks link" || warn "No ss:// link in subscription"

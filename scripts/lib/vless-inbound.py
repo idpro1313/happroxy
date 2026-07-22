@@ -17,7 +17,15 @@ def load_template(path: Path, values: dict) -> dict:
     return json.loads(text)
 
 
-def collect_clients(conn: sqlite3.Connection) -> list[dict]:
+def table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
+def collect_clients_from_json(conn: sqlite3.Connection) -> list[dict]:
     seen: dict[str, dict] = {}
     rows = conn.execute(
         "SELECT settings, protocol, remark FROM inbounds WHERE enable=1"
@@ -44,13 +52,66 @@ def collect_clients(conn: sqlite3.Connection) -> list[dict]:
     return list(seen.values())
 
 
+def load_client_records(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Clients linked to legacy inbounds (3X-UI subscription uses clients + client_inbounds)."""
+    if not table_exists(conn, "clients") or not table_exists(conn, "client_inbounds"):
+        return []
+    return conn.execute(
+        """
+        SELECT DISTINCT
+          c.id AS client_pk,
+          c.email,
+          c.sub_id,
+          c.uuid,
+          c.limit_ip,
+          c.total_gb,
+          c.expiry_time,
+          c.enable,
+          c.tg_id,
+          c.comment,
+          c.reset,
+          c.created_at,
+          c.updated_at
+        FROM clients c
+        JOIN client_inbounds ci ON ci.client_id = c.id
+        JOIN inbounds i ON i.id = ci.inbound_id
+        WHERE c.enable = 1
+          AND c.sub_id IS NOT NULL
+          AND c.sub_id != ''
+          AND i.enable = 1
+          AND i.protocol != 'vless'
+        ORDER BY c.id
+        """
+    ).fetchall()
+
+
+def client_json_from_record(row: sqlite3.Row) -> dict:
+    now = int(time.time() * 1000)
+    client_uuid = row["uuid"] or str(uuid.uuid4())
+    return {
+        "id": client_uuid,
+        "flow": "xtls-rprx-vision",
+        "email": row["email"],
+        "limitIp": row["limit_ip"] if row["limit_ip"] is not None else 3,
+        "totalGB": row["total_gb"] or 0,
+        "expiryTime": row["expiry_time"] or 0,
+        "enable": bool(row["enable"]),
+        "tgId": row["tg_id"] or "",
+        "subId": row["sub_id"],
+        "comment": row["comment"] or "",
+        "reset": row["reset"] or 0,
+        "createdAt": row["created_at"] or now,
+        "updatedAt": now,
+    }
+
+
 def make_vless_client(source: dict | None) -> dict:
     now = int(time.time() * 1000)
     client_id = str(uuid.uuid4())
     if source:
         sub_id = source.get("subId") or source.get("id") or client_id.replace("-", "")[:16]
         return {
-            "id": client_id,
+            "id": source.get("id") or client_id,
             "flow": "xtls-rprx-vision",
             "email": source.get("email") or f"family-{client_id[:8]}",
             "limitIp": source.get("limitIp", 3),
@@ -82,6 +143,53 @@ def make_vless_client(source: dict | None) -> dict:
     }
 
 
+def link_clients_to_inbound(
+    conn: sqlite3.Connection, inbound_id: int, client_pks: list[int]
+) -> int:
+    if not table_exists(conn, "client_inbounds") or not client_pks:
+        return 0
+    now = int(time.time() * 1000)
+    linked = 0
+    for client_pk in client_pks:
+        exists = conn.execute(
+            "SELECT 1 FROM client_inbounds WHERE client_id=? AND inbound_id=? LIMIT 1",
+            (client_pk, inbound_id),
+        ).fetchone()
+        if exists:
+            conn.execute(
+                """
+                UPDATE client_inbounds
+                SET flow_override=?
+                WHERE client_id=? AND inbound_id=?
+                """,
+                ("xtls-rprx-vision", client_pk, inbound_id),
+            )
+            continue
+        conn.execute(
+            """
+            INSERT INTO client_inbounds (client_id, inbound_id, flow_override, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (client_pk, inbound_id, "xtls-rprx-vision", now),
+        )
+        linked += 1
+    return linked
+
+
+def resolve_clients(conn: sqlite3.Connection) -> tuple[list[dict], list[int]]:
+    records = load_client_records(conn)
+    if records:
+        clients = [client_json_from_record(row) for row in records]
+        client_pks = [int(row["client_pk"]) for row in records]
+        return clients, client_pks
+
+    sources = collect_clients_from_json(conn)
+    if sources:
+        return [make_vless_client(src) for src in sources], []
+
+    return [make_vless_client(None)], []
+
+
 def upsert_vless_inbound(
     db_path: Path,
     template_path: Path,
@@ -106,14 +214,14 @@ def upsert_vless_inbound(
     )
 
     conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
     try:
         existing = conn.execute(
             "SELECT id FROM inbounds WHERE port=? OR remark=? LIMIT 1",
             (vless_port, tpl["remark"]),
         ).fetchone()
 
-        sources = collect_clients(conn)
-        clients = [make_vless_client(src) for src in sources] if sources else [make_vless_client(None)]
+        clients, client_pks = resolve_clients(conn)
         tpl["settings"]["clients"] = clients
 
         settings_json = json.dumps(tpl["settings"], ensure_ascii=False)
@@ -122,7 +230,7 @@ def upsert_vless_inbound(
         tag = tpl["tag"]
 
         if existing:
-            inbound_id = existing[0]
+            inbound_id = int(existing["id"])
             conn.execute(
                 """
                 UPDATE inbounds SET
@@ -161,13 +269,20 @@ def upsert_vless_inbound(
                     sniff_json,
                 ),
             )
+            row = conn.execute(
+                "SELECT id FROM inbounds WHERE port=? LIMIT 1", (vless_port,)
+            ).fetchone()
+            inbound_id = int(row["id"])
             action = "created"
 
+        linked = link_clients_to_inbound(conn, inbound_id, client_pks)
         conn.commit()
         return {
             "action": action,
             "port": vless_port,
+            "inbound_id": inbound_id,
             "clients": len(clients),
+            "client_inbounds_linked": linked,
             "sub_ids": [c["subId"] for c in clients],
         }
     finally:
