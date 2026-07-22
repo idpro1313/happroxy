@@ -104,10 +104,16 @@ main() {
   check_file "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
   check_file "${PROJECT_DIR}/scripts/lib/vless-inbound.py"
+  check_file "${PROJECT_DIR}/scripts/lib/reality-keys.py"
   if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/vless-inbound.py" 2>/dev/null; then
     log "OK python: scripts/lib/vless-inbound.py"
   else
     fail "Python syntax error: scripts/lib/vless-inbound.py"
+  fi
+  if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/reality-keys.py" 2>/dev/null; then
+    log "OK python: scripts/lib/reality-keys.py"
+  else
+    fail "Python syntax error: scripts/lib/reality-keys.py"
   fi
 
   for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2; do
