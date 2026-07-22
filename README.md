@@ -395,7 +395,23 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 
 ---
 
+## Фаза 1 (без VLESS)
 
+Как было до `setup-vless-reality.sh`: **Shadowsocks + VMess**, подписка, Happ, routing для РФ.
+
+```bash
+cd /opt/happroxy && git pull
+sudo bash scripts/restore-phase1.sh
+```
+
+**Happ:** удалить подписку → добавить URL из `bash scripts/show-urls.sh` → **ss-fallback** → после проверки routing: `bash scripts/generate-routing-deeplink.sh`.
+
+| Протокол    | Порт  | В Happ              |
+| ----------- | ----- | ------------------- |
+| Shadowsocks | 8388  | основной            |
+| VMess       | 16888 | запасной            |
+
+---
 
 ## Фаза 2
 
