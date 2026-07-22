@@ -42,6 +42,12 @@ check_xray_logs() {
     return
   fi
 
+  if docker exec happroxy_3xui sh -c 'pgrep -af xray 2>/dev/null || ps aux 2>/dev/null | grep -v grep | grep xray' | grep -q xray; then
+    log "Xray process is running inside container."
+  else
+    fail "Xray process not found in container — wait 30s after restart or run: sudo bash scripts/repair-panel.sh"
+  fi
+
   local errors
   errors="$(docker logs happroxy_3xui --tail 200 2>&1 | grep -E 'ERROR|Failed to start|exit status' | tail -n 10 || true)"
   if [[ -n "${errors}" ]]; then
@@ -55,7 +61,7 @@ check_xray_logs() {
   if docker logs happroxy_3xui --tail 50 2>&1 | grep -q "Xray.*started"; then
     log "Xray started message found in recent logs."
   else
-    warn "Xray 'started' not seen in last 50 log lines — proxy may be down."
+    warn "Xray 'started' not seen in last 50 log lines (process check above is authoritative)."
   fi
 }
 
@@ -160,8 +166,8 @@ check_subscription() {
 
   if grep -qE 'vless://' <<<"${decoded}" && [[ -n "${db}" ]] && command -v python3 >/dev/null 2>&1; then
     log "=== VLESS Reality consistency ==="
-    if ! python3 "${SCRIPT_DIR}/lib/verify-vless-reality.py" "${db}" "${PROJECT_DIR}/.env" "${decoded}" | sed 's/^/[diagnose] /'; then
-      warn "VLESS Reality mismatch — run: sudo bash scripts/setup-vless-reality.sh && docker restart happroxy_3xui"
+    if ! python3 "${SCRIPT_DIR}/lib/verify-vless-reality.py" "${db}" "${PROJECT_DIR}/.env" "${decoded}" "${sub_id}" | sed 's/^/[diagnose] /'; then
+      warn "VLESS Reality mismatch — run: python3 scripts/lib/fix-client-json.py \"${db}\" && docker restart happroxy_3xui"
     fi
   fi
 }

@@ -79,7 +79,6 @@ def load_client_records(conn: sqlite3.Connection) -> list[sqlite3.Row]:
           AND c.sub_id IS NOT NULL
           AND c.sub_id != ''
           AND i.enable = 1
-          AND i.protocol != 'vless'
         ORDER BY c.id
         """
     ).fetchall()

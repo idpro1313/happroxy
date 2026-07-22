@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 import sqlite3
 import sys
 import urllib.parse
@@ -79,6 +78,7 @@ def client_flows(settings_raw: str) -> list[dict]:
                 "id": c.get("id") or "",
                 "flow": c.get("flow") or "",
                 "enable": c.get("enable", True),
+                "subId": c.get("subId") or "",
             }
         )
     return out
@@ -87,7 +87,7 @@ def client_flows(settings_raw: str) -> list[dict]:
 def main() -> int:
     if len(sys.argv) < 4:
         print(
-            "Usage: verify-vless-reality.py DB ENV_FILE SUBSCRIPTION_TEXT",
+            "Usage: verify-vless-reality.py DB ENV_FILE SUBSCRIPTION_TEXT [SUB_ID]",
             file=sys.stderr,
         )
         return 2
@@ -95,6 +95,7 @@ def main() -> int:
     db_path = Path(sys.argv[1])
     env_path = Path(sys.argv[2])
     sub_text = sys.argv[3]
+    sub_id = sys.argv[4] if len(sys.argv) > 4 else ""
 
     env = load_env(env_path)
     vless_port = int(env.get("VLESS_PORT") or "4433")
@@ -128,6 +129,17 @@ def main() -> int:
 
     conn = sqlite3.connect(str(db_path))
     try:
+        owner_email = ""
+        owner_uuid = ""
+        if sub_id:
+            owner = conn.execute(
+                "SELECT email, uuid FROM clients WHERE sub_id=? LIMIT 1",
+                (sub_id,),
+            ).fetchone()
+            if owner:
+                owner_email, owner_uuid = owner[0] or "", owner[1] or ""
+                print(f"subscription owner email={owner_email} uuid={owner_uuid}")
+
         row = conn.execute(
             """
             SELECT remark, enable, settings, stream_settings
@@ -160,25 +172,36 @@ def main() -> int:
                 warnings.append(
                     "Inbound realitySettings has client-side fields at top level: "
                     + ", ".join(reality["client_fields"])
-                    + " (3X-UI should strip these before Xray; re-run setup-vless-reality.sh if connections fail)"
+                    + " (re-run setup-vless-reality.sh if connections fail)"
                 )
 
             clients = client_flows(settings_raw or "")
             if not clients:
                 issues.append("No clients in vless inbound settings")
             else:
+                owner_in_inbound = False
                 for c in clients:
                     print(
-                        f"  client email={c['email']} flow={c['flow'] or '(empty)'} enable={c['enable']}"
+                        f"  client email={c['email']} id={c['id']} "
+                        f"flow={c['flow'] or '(empty)'} enable={c['enable']}"
                     )
-                    if vless and c["id"] and c["id"] != vless["uuid"]:
-                        warnings.append(
-                            f"Inbound client id {c['id']} != subscription uuid {vless['uuid']}"
-                        )
                     if c["enable"] and c["flow"] != "xtls-rprx-vision":
                         issues.append(
                             f"Client {c['email']} flow is '{c['flow']}', expected xtls-rprx-vision"
                         )
+                    if owner_uuid and c["id"] == owner_uuid:
+                        owner_in_inbound = True
+
+                check_uuid = owner_uuid or (vless["uuid"] if vless else "")
+                check_email = owner_email or ""
+                if check_uuid and not owner_in_inbound:
+                    issues.append(
+                        f"Subscription UUID {check_uuid} ({check_email or '?'}) "
+                        "missing in vless inbound settings — run: "
+                        "python3 scripts/lib/fix-client-json.py DB"
+                    )
+                elif check_uuid and owner_in_inbound:
+                    print(f"subscription owner present in vless inbound — OK")
     finally:
         conn.close()
 
@@ -188,7 +211,7 @@ def main() -> int:
         print(f"FAIL: {i}")
 
     if issues:
-        print("Fix: sudo bash scripts/setup-vless-reality.sh && docker restart happroxy_3xui")
+        print("Fix: python3 scripts/lib/fix-client-json.py DB && docker restart happroxy_3xui")
         return 1
     print("VLESS Reality config looks consistent (.env, DB, subscription)")
     return 0
