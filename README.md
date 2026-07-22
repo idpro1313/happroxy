@@ -277,8 +277,24 @@ DNS: туннель → Cloudflare DoH; локальный (RU) → Yandex `77.8
 
 ```bash
 bash scripts/generate-routing-deeplink.sh --validate   # проверка JSON
-bash scripts/generate-routing-deeplink.sh              # deeplink
+bash scripts/generate-routing-deeplink.sh              # deeplink (полный)
+bash scripts/generate-routing-deeplink.sh --lite       # iPhone: ~50 MB RAM
 bash scripts/generate-routing-deeplink.sh --print-json   # отладка
+```
+
+### iPhone / лимит 50 MB
+
+iOS ограничивает VPN-туннель **~50 MB RAM** ([Happ FAQ](https://www.happ.su/main/faq/apple-tv-tvos)). Полный профиль с geosite + загрузкой geo может не влезть.
+
+**Облегчённый профиль** (`--lite` или `HAPP_ROUTING_LITE=true`):
+
+- только `geoip:ru` + `geoip:private` (RU-трафик и LAN напрямую)
+- **без** geosite-правил и блокировки рекламы
+- **встроенные** geo Happ (без скачивания файлов)
+- `UseChunkFiles: true`, `DomainStrategy: IPIfNonMatch`
+
+```bash
+bash scripts/generate-routing-deeplink.sh --lite
 ```
 
 Вставьте `happ://routing/add/...` в **Подписка → Правила маршрутизации**. Скрипт подставляет из `.env`: `SERVER_IP/32`, `<PANEL_DOMAIN>`, **`SUB_PROFILE_TITLE` → поле `Name`**.

@@ -147,6 +147,7 @@ main() {
   done
 
   check_json "${PROJECT_DIR}/config/happ-routing.json"
+  check_json "${PROJECT_DIR}/config/happ-routing-lite.json"
   check_file "${PROJECT_DIR}/scripts/lib/happ-routing.py"
   if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/happ-routing.py" 2>/dev/null; then
     log "OK python: scripts/lib/happ-routing.py"

@@ -73,7 +73,11 @@ def sanitize_direct_sites(sites: list[str]) -> list[str]:
 
 
 def inject_direct(
-    data: dict, server_ip: str, panel_domain: str, profile_name: str = ""
+    data: dict,
+    server_ip: str,
+    panel_domain: str,
+    profile_name: str = "",
+    lite: bool = False,
 ) -> dict:
     if profile_name:
         data["Name"] = profile_name
@@ -86,13 +90,14 @@ def inject_direct(
         if entry not in direct:
             direct.append(entry)
 
-    for entry in RUNETFREEDOM_DIRECT_SITES:
-        if entry not in direct_sites:
-            direct_sites.append(entry)
+    if not lite:
+        for entry in RUNETFREEDOM_DIRECT_SITES:
+            if entry not in direct_sites:
+                direct_sites.append(entry)
 
-    for entry in RUNETFREEDOM_BLOCK_SITES:
-        if entry not in block_sites:
-            block_sites.append(entry)
+        for entry in RUNETFREEDOM_BLOCK_SITES:
+            if entry not in block_sites:
+                block_sites.append(entry)
 
     if server_ip:
         cidr = server_ip if "/" in server_ip else f"{server_ip}/32"
@@ -210,7 +215,14 @@ def main() -> int:
         action="store_true",
         help="Use Happ built-in geo files (empty Geoipurl/Geositeurl)",
     )
+    parser.add_argument(
+        "--lite",
+        action="store_true",
+        help="iOS-friendly: no geosite rules, built-in geo only",
+    )
     args = parser.parse_args()
+
+    geo_builtin = args.geo_builtin or args.lite
 
     data = normalize(
         apply_geo_urls(
@@ -219,10 +231,11 @@ def main() -> int:
                 args.server_ip,
                 args.panel_domain,
                 args.profile_name,
+                lite=args.lite,
             ),
             args.geoip_url,
             args.geosite_url,
-            args.geo_builtin,
+            geo_builtin,
         )
     )
     errors = validate(data)
