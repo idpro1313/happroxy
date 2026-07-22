@@ -17,7 +17,8 @@ HY2_PORT="${HY2_PORT:-4443}"
 SS_PORT="${SS_PORT:-8388}"
 VMESS_PORT="${VMESS_PORT:-16888}"
 TROJAN_PORT="${TROJAN_PORT:-8443}"
-ENABLE_TROJAN="${ENABLE_TROJAN:-true}"
+SUB_PORT="${SUB_PORT:-2096}"
+ENABLE_TROJAN="${ENABLE_TROJAN:-false}"
 
 FAIL=0
 
@@ -59,29 +60,30 @@ check_udp_port() {
   fi
 }
 
-check_panel_https() {
+check_panel_http() {
   local code
-  code="$(curl -k -s -o /dev/null -w '%{http_code}' --max-time 10 \
-    "https://${SERVER_IP}:${PANEL_PORT}/" 2>/dev/null || echo "000")"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+    "http://127.0.0.1:${PANEL_PORT}/" 2>/dev/null || echo "000")"
 
   if [[ "${code}" =~ ^(200|301|302|401|403)$ ]]; then
-    log "Panel HTTPS https://${SERVER_IP}:${PANEL_PORT}/ — HTTP ${code}"
+    log "Panel HTTP http://127.0.0.1:${PANEL_PORT}/ — ${code}"
   else
-    fail "Panel HTTPS https://${SERVER_IP}:${PANEL_PORT}/ — HTTP ${code}"
+    fail "Panel HTTP http://127.0.0.1:${PANEL_PORT}/ — ${code}"
   fi
 }
 
 check_subscription_sample() {
   local sub_path="${SUB_PATH:-/sub/family}"
-  local url="https://${SERVER_IP}:${PANEL_PORT}${sub_path}/test"
+  [[ "${sub_path}" == */ ]] || sub_path="${sub_path}/"
+  local url="http://127.0.0.1:${SUB_PORT}${sub_path}test"
 
-  log "Subscription endpoint probe (expect 404 without valid subId): ${url}"
+  log "Subscription probe: ${url} (expect 404/200 without valid subId)"
   local code
-  code="$(curl -k -s -o /dev/null -w '%{http_code}' --max-time 10 "${url}" 2>/dev/null || echo "000")"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${url}" 2>/dev/null || echo "000")"
   if [[ "${code}" != "000" ]]; then
-    log "Subscription service responded: HTTP ${code}"
+    log "Subscription service on :${SUB_PORT} — HTTP ${code}"
   else
-    warn "Could not reach subscription endpoint (configure inbounds/clients first)."
+    warn "Subscription port ${SUB_PORT} not responding"
   fi
 }
 
@@ -94,7 +96,7 @@ main() {
   fi
 
   check_container
-  check_panel_https
+  check_panel_http
   check_tcp_port "${SERVER_IP}" "${PANEL_PORT}" "Panel"
   check_tcp_port "127.0.0.1" "${HY2_PORT}" "Hysteria2"
   check_udp_port "${HY2_PORT}" "Hysteria2"
