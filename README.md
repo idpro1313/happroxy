@@ -2,8 +2,6 @@
 
 [3X-UI](https://github.com/MHSanaei/3x-ui) в Docker на Ubuntu 24.04: подписки, split-tunnel для РФ, HTTPS через Traefik.
 
-**Репозиторий:** `https://github.com/idpro1313/happroxy.git`
-
 ---
 
 ## Содержание
@@ -38,7 +36,7 @@
 |-----------|-----|
 | Код, compose | `/opt/happroxy` (git pull) |
 | Данные 3X-UI | `/opt/happdata` (`DATA_DIR`) |
-| Traefik | `/opt/webserver/reverse-proxy`, сеть Docker `web`, resolver `le` |
+| Traefik | Docker-сеть `web`, resolver `le` (на этой VM) |
 
 **Занятые порты VM (не трогать):** 80, 443, 8080, 8000, 9443, 10086, 17998 — Traefik, Portainer, wg-dashboard.
 
@@ -58,15 +56,21 @@
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/idpro1313/happroxy.git /opt/happroxy
+git clone <repo-url> /opt/happroxy
 cd /opt/happroxy
-cp .env.example .env    # задайте SERVER_IP
 sudo bash scripts/install.sh
 ```
 
-`install.sh`: Docker, swap 2G, `/opt/happdata`, UFW, self-signed cert, `docker compose up -d`.
+`install.sh` спросит **публичный IP** и (опционально) **домен** для HTTPS, затем:
+Docker, swap 2G, `/opt/happdata`, UFW, self-signed cert, `docker compose up -d`.
 
-После установки — [настройка 3X-UI](#настройка-3x-ui), затем [HTTPS](#https-и-traefik) (если есть домен).
+Без интерактива (CI / скрипты): задайте `SERVER_IP` и при необходимости `PANEL_DOMAIN` в `.env`, затем:
+
+```bash
+HAPPROXY_NON_INTERACTIVE=1 sudo bash scripts/install.sh --non-interactive
+```
+
+После установки — [настройка 3X-UI](#настройка-3x-ui). Если домен не задавали — [HTTPS](#https-и-traefik) позже через `setup-https.sh`.
 
 ---
 
@@ -78,19 +82,19 @@ sudo bash scripts/install.sh
 
 | Тип | Имя | Значение |
 |-----|-----|----------|
-| A | `vpn` | `<SERVER_IP>` |
+| A | `vpn` (или `@`) | `<SERVER_IP>` |
 
-Пример: `vpn.idpro13.ru` → IP VM.
+Пример: `vpn.example.com` → IP вашей VM.
 
-### Установка
+### Установка / повторная настройка
 
 ```bash
 cd /opt/happroxy
 git pull
-
-# В .env: SERVER_IP=..., затем:
-sudo bash scripts/setup-https.sh --domain vpn.idpro13.ru --docker-labels
+sudo bash scripts/setup-https.sh --domain vpn.example.com --docker-labels
 ```
+
+Или без флага `--domain` — скрипт спросит FQDN и путь к `acme.json` (интерактивно).
 
 Скрипт: `PANEL_DOMAIN` в `.env`, Traefik labels ([`docker-compose.traefik.yml`](docker-compose.traefik.yml)), HTTPS `subURI` в SQLite.
 
@@ -130,12 +134,13 @@ docker restart happroxy_3xui
 
 ### Переменные `.env` (HTTPS)
 
-| Переменная | Назначение |
-|------------|------------|
-| `PANEL_DOMAIN` | `vpn.idpro13.ru` |
+| Переменная | Пример |
+|------------|--------|
+| `SERVER_IP` | публичный IPv4 VM |
+| `PANEL_DOMAIN` | `vpn.example.com` |
 | `USE_HTTPS` | `true` |
 | `TRAEFIK_CERT_RESOLVER` | `le` |
-| `TRAEFIK_ACME_FILE` | `/opt/webserver/traefikdata/letsencrypt/acme.json` |
+| `TRAEFIK_ACME_FILE` | путь к `acme.json` Traefik на хосте |
 
 File-provider Traefik (опционально): [`config/traefik/happroxy.yml`](config/traefik/happroxy.yml).
 
@@ -229,7 +234,7 @@ bash scripts/generate-routing-deeplink.sh
 
 | Скрипт | Назначение |
 |--------|------------|
-| `install.sh` | Первичная установка |
+| `install.sh` | Первичная установка (интерактивно: IP + домен) |
 | `setup-https.sh` | Домен + Traefik labels + HTTPS subURI |
 | `repair-panel.sh` | SQLite: subListen, subURI, удаление Trojan:8443 |
 | `show-urls.sh` | Panel + subscription URL (webBasePath) |
@@ -335,7 +340,7 @@ happroxy/
 │   ├── happ-routing.json
 │   └── traefik/happroxy.yml      # опционально, file provider
 └── scripts/
-    ├── lib/                      # load-env, data-dir, db, compose, public-url
+    ├── lib/                      # load-env, prompt, data-dir, db, compose, public-url
     ├── install.sh
     ├── setup-https.sh
     ├── repair-panel.sh

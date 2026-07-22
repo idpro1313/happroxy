@@ -91,6 +91,8 @@ main() {
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/data-dir.sh"
   check_file "${PROJECT_DIR}/scripts/lib/compose.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/compose.sh"
+  check_file "${PROJECT_DIR}/scripts/lib/prompt.sh"
+  check_bash_syntax "${PROJECT_DIR}/scripts/lib/prompt.sh"
   check_file "${PROJECT_DIR}/scripts/lib/public-url.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/public-url.sh"
   check_file "${PROJECT_DIR}/scripts/lib/db.sh"

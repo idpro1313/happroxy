@@ -39,16 +39,17 @@ usage() {
 Usage: sudo bash scripts/setup-https.sh [options]
 
 Options:
-  --domain NAME       Public FQDN (default: vpn.idpro13.ru)
-  --email ADDR        Let's Encrypt email (certbot only; Traefik already uses idpro13@gmail.com)
-  --docker-labels     Use docker-compose.traefik.yml (default for Docker-provider Traefik)
+  --domain NAME       Public FQDN (or set PANEL_DOMAIN in .env; else interactive prompt)
+  --email ADDR        Let's Encrypt email (certbot / file-provider only)
+  --docker-labels     Use docker-compose.traefik.yml (default)
   --file-provider     Generate file config instead of Docker labels
-  --skip-certbot      Skip certbot (default with --docker-labels; use sync-traefik-certs.sh)
+  --skip-certbot      Skip certbot (use sync-traefik-certs.sh with Traefik acme.json)
   --skip-traefik      Only update .env + panel DB
+  --non-interactive   No prompts (require --domain or PANEL_DOMAIN)
   --traefik-dir DIR   Copy file config to DIR (with --file-provider)
 
-Example (your Traefik at /opt/webserver/reverse-proxy):
-  sudo bash scripts/setup-https.sh --domain vpn.idpro13.ru --docker-labels
+Example:
+  sudo bash scripts/setup-https.sh --domain vpn.example.com --docker-labels
 EOF
 }
 
@@ -84,7 +85,9 @@ update_env_domain() {
   set_kv "PANEL_DOMAIN" "${domain}"
   set_kv "USE_HTTPS" "true"
   set_kv "TRAEFIK_CERT_RESOLVER" "${TRAEFIK_CERT_RESOLVER:-le}"
-  set_kv "TRAEFIK_ACME_FILE" "${TRAEFIK_ACME_FILE:-/opt/webserver/traefikdata/letsencrypt/acme.json}"
+  if [[ -n "${TRAEFIK_ACME_FILE:-}" ]]; then
+    set_kv "TRAEFIK_ACME_FILE" "${TRAEFIK_ACME_FILE}"
+  fi
   log "Updated .env: PANEL_DOMAIN=${domain}, USE_HTTPS=true"
 }
 
@@ -108,7 +111,7 @@ render_traefik_config() {
   dst="${PROJECT_DIR}/config/traefik/happroxy.generated.yml"
   [[ -f "${src}" ]] || die "Missing ${src}"
 
-  sed -e "s/vpn\\.idpro13\\.ru/${domain}/g" \
+  sed -e "s/PANEL_DOMAIN\\.example/${domain}/g" \
       -e "s/172\\.17\\.0\\.1:38471/${upstream}:${panel_port}/g" \
       -e "s/172\\.17\\.0\\.1:2096/${upstream}:${sub_port}/g" \
       "${src}" > "${dst}"
@@ -166,6 +169,7 @@ main() {
       --file-provider) use_file_provider=true; use_docker_labels=false; shift ;;
       --skip-certbot) skip_certbot=true; shift ;;
       --skip-traefik) skip_traefik=true; shift ;;
+      --non-interactive) export HAPPROXY_NON_INTERACTIVE=1; shift ;;
       --traefik-dir)
         [[ $# -ge 2 ]] || die "Missing value for --traefik-dir"
         traefik_dir="$2"
@@ -185,13 +189,28 @@ main() {
   [[ -f "${PROJECT_DIR}/.env" ]] || die ".env not found — run install.sh first"
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/load-env.sh"
+  source "${SCRIPT_DIR}/lib/prompt.sh"
   trap - ERR
   load_env_file "${PROJECT_DIR}/.env" || die "Failed to read .env"
   trap on_err ERR
 
-  domain="${domain:-${PANEL_DOMAIN:-vpn.idpro13.ru}}"
+  domain="${domain:-${PANEL_DOMAIN:-}}"
+  if [[ -z "${domain}" ]]; then
+    domain="$(prompt_setup_https_domain "")"
+  fi
+  [[ -n "${domain}" ]] || die "Set --domain or PANEL_DOMAIN in .env (or run interactively)"
+
+  if [[ -z "${TRAEFIK_ACME_FILE:-}" ]] && happroxy_is_interactive; then
+    local acme_path
+    acme_path="$(prompt_with_default "Путь к Traefik acme.json (Enter — пропустить)" "")"
+    if [[ -n "${acme_path}" ]]; then
+      set_env_kv "${PROJECT_DIR}/.env" "TRAEFIK_ACME_FILE" "${acme_path}"
+      TRAEFIK_ACME_FILE="${acme_path}"
+    fi
+  fi
+
   log "Step 5/8: validate SERVER_IP (got: ${SERVER_IP:-<empty>})..."
-  [[ -n "${SERVER_IP:-}" ]] || die "Set SERVER_IP in .env (e.g. SERVER_IP=31.15.19.102)"
+  [[ -n "${SERVER_IP:-}" ]] || die "Set SERVER_IP in .env (run scripts/install.sh first)"
 
   log "Domain: ${domain}"
   log "Server IP: ${SERVER_IP}"

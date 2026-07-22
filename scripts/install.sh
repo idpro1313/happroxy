@@ -81,10 +81,12 @@ generate_password() {
 ensure_env() {
   local env_file="${PROJECT_DIR}/.env"
   local example_file="${PROJECT_DIR}/.env.example"
+  local env_created=false
 
   if [[ ! -f "${env_file}" ]]; then
     log "Creating .env from .env.example..."
     cp "${example_file}" "${env_file}"
+    env_created=true
   fi
 
   # Fix legacy unquoted values with spaces.
@@ -97,17 +99,25 @@ ensure_env() {
 
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/load-env.sh"
+  source "${SCRIPT_DIR}/lib/prompt.sh"
   load_env_file "${env_file}"
 
   local detected_ip
   detected_ip="$(detect_public_ip)"
 
-  if [[ -z "${SERVER_IP:-}" && -n "${detected_ip}" ]]; then
-    sed -i "s/^SERVER_IP=.*/SERVER_IP=${detected_ip}/" "${env_file}"
-    log "Detected public IP: ${detected_ip}"
-  elif [[ -z "${SERVER_IP:-}" ]]; then
-    die "Set SERVER_IP in .env manually."
+  if [[ "${env_created}" == "true" ]] || [[ -z "${SERVER_IP:-}" ]]; then
+    if happroxy_is_interactive; then
+      prompt_install_env "${env_file}" "${SERVER_IP:-${detected_ip}}"
+      load_env_file "${env_file}"
+    elif [[ -z "${SERVER_IP:-}" && -n "${detected_ip}" ]]; then
+      # shellcheck disable=SC1091
+      set_env_kv "${env_file}" "SERVER_IP" "${detected_ip}"
+      log "Detected public IP: ${detected_ip}"
+      load_env_file "${env_file}"
+    fi
   fi
+
+  [[ -n "${SERVER_IP:-}" ]] || die "SERVER_IP not set. Run install interactively or set SERVER_IP in .env"
 
   if ! grep -q '^XUI_ADMIN_PASSWORD=' "${env_file}"; then
     local admin_user admin_pass
@@ -148,13 +158,18 @@ generate_self_signed_cert() {
   fi
 
   local ip="${SERVER_IP:-127.0.0.1}"
+  local cn="${PANEL_DOMAIN:-${ip}}"
+  local san="IP:${ip}"
+  if [[ -n "${PANEL_DOMAIN:-}" ]]; then
+    san="DNS:${PANEL_DOMAIN},IP:${ip}"
+  fi
 
-  log "Generating self-signed certificate for IP ${ip}..."
+  log "Generating self-signed certificate for ${cn}..."
   openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
     -keyout "${key}" \
     -out "${crt}" \
-    -subj "/CN=${ip}" \
-    -addext "subjectAltName=IP:${ip}" 2>/dev/null
+    -subj "/CN=${cn}" \
+    -addext "subjectAltName=${san}" 2>/dev/null
   chmod 600 "${key}"
   log "Certificate: ${crt}"
 }
@@ -175,6 +190,8 @@ start_stack() {
 print_next_steps() {
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/data-dir.sh"
+  source "${SCRIPT_DIR}/lib/load-env.sh"
+  load_env_file "${PROJECT_DIR}/.env"
   cat <<EOF
 
 ================================================================================
@@ -185,8 +202,11 @@ Data dir:   ${DATA_DIR}
   cert/     TLS certificates for inbounds
   backups/  automatic backup archives
 
-Panel URL:  http://${SERVER_IP}:${PANEL_PORT}/
-            (accept self-signed certificate warning in browser)
+SERVER_IP:     ${SERVER_IP}
+PANEL_DOMAIN:  ${PANEL_DOMAIN:-(not set — HTTP only on port ${PANEL_PORT})}
+
+Panel (direct): http://${SERVER_IP}:${PANEL_PORT}/
+Run: bash scripts/show-urls.sh  — actual URLs (HTTPS / webBasePath)
 
 Default 3X-UI login on first start: admin / admin
 Сразу смените пароль в Настройки панели → Учетная запись.
@@ -197,9 +217,8 @@ or set a new password in the panel UI.
 Next steps:
   1. Change admin password in panel
   2. Configure inbounds — README.md § «Настройка 3X-UI»
-  3. HTTPS (optional): bash scripts/setup-https.sh --domain vpn.example.com --docker-labels
-  4. bash scripts/show-urls.sh  — panel and subscription URLs
-  5. Import subscription URL into Happ
+  3. bash scripts/show-urls.sh  — panel and subscription URLs
+  4. Import subscription URL into Happ
 
 Health:   bash scripts/healthcheck.sh
 Backup:   bash scripts/backup.sh
@@ -210,19 +229,45 @@ EOF
 }
 
 main() {
+  local run_https=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --non-interactive) export HAPPROXY_NON_INTERACTIVE=1; shift ;;
+      -h|--help)
+        echo "Usage: sudo bash scripts/install.sh [--non-interactive]"
+        exit 0
+        ;;
+      *) die "Unknown option: $1" ;;
+    esac
+  done
+
   require_root
   cd "${PROJECT_DIR}"
 
-  chmod +x "${SCRIPT_DIR}"/*.sh 2>/dev/null || true
+  chmod +x "${SCRIPT_DIR}"/*.sh "${SCRIPT_DIR}"/lib/*.sh 2>/dev/null || true
 
   ensure_packages
   ensure_docker
   ensure_swap
   ensure_env
+
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/load-env.sh"
+  load_env_file "${PROJECT_DIR}/.env"
+  [[ -n "${PANEL_DOMAIN:-}" ]] && run_https=true
+
   ensure_dirs
   generate_self_signed_cert
   preflight_ports
   start_stack
+
+  if [[ "${run_https}" == "true" ]]; then
+    log "Configuring HTTPS (Traefik) for ${PANEL_DOMAIN}..."
+    local https_args=(--domain "${PANEL_DOMAIN}" --docker-labels)
+    [[ "${HAPPROXY_NON_INTERACTIVE:-0}" == "1" ]] && https_args+=(--non-interactive)
+    bash "${SCRIPT_DIR}/setup-https.sh" "${https_args[@]}"
+  fi
+
   print_next_steps
 }
 

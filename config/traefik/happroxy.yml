@@ -1,19 +1,17 @@
-# Traefik dynamic config for happroxy / 3X-UI
+# Traefik dynamic config for happroxy / 3X-UI (file provider, optional)
 #
-# Mount this file into Traefik (file provider), e.g.:
-#   /etc/traefik/dynamic/happroxy.yml
+# Replace PANEL_DOMAIN.example with your FQDN before use, or run:
+#   bash scripts/setup-https.sh --file-provider --domain <PANEL_DOMAIN>
 #
 # Prerequisites:
-#   1. DNS A-record: vpn.idpro13.ru → SERVER_IP
-#   2. certResolver "letsencrypt" exists in Traefik static config
-#   3. Replace hostnames / upstream IP if needed (default: Docker host gateway)
-#
-# Upstream: 3X-UI on host ports PANEL_PORT (38471) and SUB_PORT (2096)
+#   1. DNS A-record: <PANEL_DOMAIN> → <SERVER_IP>
+#   2. certResolver "le" (or yours) in Traefik static config
+#   3. Upstream: host gateway IP (default 172.17.0.1) and PANEL_PORT / SUB_PORT
 
 http:
   routers:
     happroxy-sub:
-      rule: "Host(`vpn.idpro13.ru`) && PathPrefix(`/sub/`)"
+      rule: "Host(`PANEL_DOMAIN.example`) && PathPrefix(`/sub/`)"
       entryPoints:
         - websecure
       service: happroxy-sub
@@ -22,7 +20,7 @@ http:
       priority: 20
 
     happroxy-panel:
-      rule: "Host(`vpn.idpro13.ru`)"
+      rule: "Host(`PANEL_DOMAIN.example`)"
       entryPoints:
         - websecure
       service: happroxy-panel
@@ -31,7 +29,7 @@ http:
       priority: 10
 
     happroxy-http-redirect:
-      rule: "Host(`vpn.idpro13.ru`)"
+      rule: "Host(`PANEL_DOMAIN.example`)"
       entryPoints:
         - web
       middlewares:

@@ -25,7 +25,7 @@ main() {
   load_env_file "${PROJECT_DIR}/.env"
 
   local domain="${PANEL_DOMAIN:-}"
-  [[ -n "${domain}" ]] || die "Set PANEL_DOMAIN in .env (e.g. vpn.idpro13.ru)"
+  [[ -n "${domain}" ]] || die "Set PANEL_DOMAIN in .env (e.g. vpn.example.com)"
 
   local le_dir="${LE_CERT_DIR:-/etc/letsencrypt/live/${domain}}"
   local src_full="${le_dir}/fullchain.pem"

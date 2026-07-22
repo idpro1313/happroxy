@@ -27,7 +27,8 @@ main() {
   local domain="${PANEL_DOMAIN:-}"
   [[ -n "${domain}" ]] || die "Set PANEL_DOMAIN in .env"
 
-  local acme="${TRAEFIK_ACME_FILE:-/opt/webserver/traefikdata/letsencrypt/acme.json}"
+  local acme="${TRAEFIK_ACME_FILE:-}"
+  [[ -n "${acme}" ]] || die "Set TRAEFIK_ACME_FILE in .env (path to Traefik acme.json)"
   [[ -f "${acme}" ]] || die "Traefik acme.json not found: ${acme}"
 
   if ! command -v docker >/dev/null 2>&1; then
