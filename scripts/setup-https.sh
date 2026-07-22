@@ -29,7 +29,9 @@ on_err() {
 trap on_err ERR
 
 require_root() {
-  [[ "${EUID:-$(id -u)}" -ne 0 ]] && die "Run as root: sudo bash scripts/setup-https.sh"
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    die "Run as root: sudo bash scripts/setup-https.sh"
+  fi
 }
 
 usage() {

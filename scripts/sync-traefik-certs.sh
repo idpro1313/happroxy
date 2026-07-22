@@ -10,7 +10,9 @@ warn() { printf '[sync-traefik-certs] WARN: %s\n' "$*" >&2; }
 die() { printf '[sync-traefik-certs] ERROR: %s\n' "$*" >&2; exit 1; }
 
 require_root() {
-  [[ "${EUID:-$(id -u)}" -ne 0 ]] && die "Run as root: sudo bash scripts/sync-traefik-certs.sh"
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    die "Run as root: sudo bash scripts/sync-traefik-certs.sh"
+  fi
 }
 
 main() {

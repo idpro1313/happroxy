@@ -10,7 +10,9 @@ warn() { printf '[sync-le-certs] WARN: %s\n' "$*" >&2; }
 die() { printf '[sync-le-certs] ERROR: %s\n' "$*" >&2; exit 1; }
 
 require_root() {
-  [[ "${EUID:-$(id -u)}" -ne 0 ]] && die "Run as root: sudo bash scripts/sync-le-certs.sh"
+  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    die "Run as root: sudo bash scripts/sync-le-certs.sh"
+  fi
 }
 
 main() {
