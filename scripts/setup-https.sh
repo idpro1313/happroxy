@@ -300,6 +300,8 @@ Manual steps:
   4. Входящие → Стратегия адреса → ${domain}
   5. HY2 certs: sudo bash scripts/sync-traefik-certs.sh && docker restart happroxy_3xui
   6. Happ: новая подписка ${sub_base}<subId>, затем generate-routing-deeplink.sh
+  7. Phase 2: sudo bash scripts/setup-vless-reality.sh
+  8. Encrypted sub: bash scripts/generate-crypto-subscription.sh
 
 Traefik: Docker labels via docker-compose.traefik.yml, network web, certresolver le.
 HTTP→HTTPS redirect already configured in your Traefik entrypoint web.

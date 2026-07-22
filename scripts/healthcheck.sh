@@ -14,12 +14,14 @@ fi
 
 SERVER_IP="${SERVER_IP:-127.0.0.1}"
 PANEL_PORT="${PANEL_PORT:-38471}"
+VLESS_PORT="${VLESS_PORT:-4433}"
 HY2_PORT="${HY2_PORT:-4443}"
 SS_PORT="${SS_PORT:-8388}"
 VMESS_PORT="${VMESS_PORT:-16888}"
 TROJAN_PORT="${TROJAN_PORT:-8443}"
 SUB_PORT="${SUB_PORT:-2096}"
 ENABLE_TROJAN="${ENABLE_TROJAN:-false}"
+ENABLE_LEGACY_INBOUNDS="${ENABLE_LEGACY_INBOUNDS:-true}"
 
 FAIL=0
 
@@ -105,10 +107,14 @@ main() {
   check_container
   check_panel_http
   check_tcp_port "${SERVER_IP}" "${PANEL_PORT}" "Panel"
-  check_tcp_port "127.0.0.1" "${HY2_PORT}" "Hysteria2"
-  check_udp_port "${HY2_PORT}" "Hysteria2"
-  check_tcp_port "127.0.0.1" "${SS_PORT}" "Shadowsocks"
-  check_tcp_port "127.0.0.1" "${VMESS_PORT}" "VMess"
+  check_tcp_port "127.0.0.1" "${VLESS_PORT}" "VLESS Reality"
+
+  if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
+    check_tcp_port "127.0.0.1" "${HY2_PORT}" "Hysteria2"
+    check_udp_port "${HY2_PORT}" "Hysteria2"
+    check_tcp_port "127.0.0.1" "${SS_PORT}" "Shadowsocks"
+    check_tcp_port "127.0.0.1" "${VMESS_PORT}" "VMess"
+  fi
 
   if [[ "${ENABLE_TROJAN}" == "true" ]]; then
     check_tcp_port "127.0.0.1" "${TROJAN_PORT}" "Trojan"

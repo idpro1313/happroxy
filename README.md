@@ -29,29 +29,36 @@
     │              └── /sub/ ───────────────► подписка :2096
     │
     └── VPN ──► SERVER_IP напрямую (не через Traefik):
-                SS :8388 │ VMess :16888 │ HY2 :4443 UDP/TCP
+                VLESS Reality :4433 │ SS :8388 │ VMess :16888 │ HY2 :4443
 ```
 
-| Компонент | Где |
-|-----------|-----|
-| Код, compose | `/opt/happroxy` (git pull) |
-| Данные 3X-UI | `/opt/happdata` (`DATA_DIR`) |
-| Traefik | Docker-сеть `web`, resolver `le` (на этой VM) |
+
+| Компонент    | Где                                           |
+| ------------ | --------------------------------------------- |
+| Код, compose | `/opt/happroxy` (git pull)                    |
+| Данные 3X-UI | `/opt/happdata` (`DATA_DIR`)                  |
+| Traefik      | Docker-сеть `web`, resolver `le` (на этой VM) |
+
 
 **Занятые порты VM (не трогать):** 80, 443, 8080, 8000, 9443, 10086, 17998 — Traefik, Portainer, wg-dashboard.
 
 **Порты happroxy:**
 
-| Сервис | `.env` | Порт |
-|--------|--------|------|
-| Панель | `PANEL_PORT` | 38471 |
-| Подписка (внутр.) | `SUB_PORT` | 2096 |
-| Shadowsocks | `SS_PORT` | 8388 |
-| VMess | `VMESS_PORT` | 16888 |
-| Hysteria2 | `HY2_PORT` | 4443 |
-| Trojan (опц.) | `TROJAN_PORT` | 8443 |
+
+| Сервис            | `.env`        | Порт  |
+| ----------------- | ------------- | ----- |
+| Панель            | `PANEL_PORT`  | 38471 |
+| Подписка (внутр.) | `SUB_PORT`    | 2096  |
+| VLESS Reality     | `VLESS_PORT`  | 4433  |
+| Shadowsocks       | `SS_PORT`     | 8388  |
+| VMess             | `VMESS_PORT`  | 16888 |
+| Hysteria2         | `HY2_PORT`    | 4443  |
+| Trojan (опц.)     | `TROJAN_PORT` | 8443  |
+
 
 ---
+
+
 
 ## Быстрый старт
 
@@ -74,15 +81,19 @@ HAPPROXY_NON_INTERACTIVE=1 sudo bash scripts/install.sh --non-interactive
 
 ---
 
+
+
 ## HTTPS и Traefik
 
-Панель и подписка — **через Traefik** (TLS Let's Encrypt). Прокси-трафик (SS/VMess/HY2) — **на IP сервера**, порты из `.env`.
+Панель и подписка — **через Traefik** (TLS Let's Encrypt). Прокси-трафик (VLESS/SS/VMess/HY2) — **на IP сервера**, порты из `.env`.
 
 ### DNS
 
-| Тип | Имя | Значение |
-|-----|-----|----------|
-| A | `vpn` (или `@`) | `<SERVER_IP>` |
+
+| Тип | Имя             | Значение      |
+| --- | --------------- | ------------- |
+| A   | `vpn` (или `@`) | `<SERVER_IP>` |
+
 
 Пример: `vpn.example.com` → IP вашей VM.
 
@@ -96,7 +107,7 @@ sudo bash scripts/setup-https.sh --domain vpn.example.com --docker-labels
 
 Или без флага `--domain` — скрипт спросит FQDN и путь к `acme.json` (интерактивно).
 
-Скрипт: `PANEL_DOMAIN` в `.env`, Traefik labels ([`docker-compose.traefik.yml`](docker-compose.traefik.yml)), HTTPS `subURI` в SQLite.
+Скрипт: `PANEL_DOMAIN` в `.env`, Traefik labels (`[docker-compose.traefik.yml](docker-compose.traefik.yml)`), HTTPS `subURI` в SQLite.
 
 ### Проверка
 
@@ -105,7 +116,7 @@ bash scripts/verify-traefik.sh   # сеть web, labels, правила
 bash scripts/show-urls.sh        # реальные URL панели и подписки
 ```
 
-В Traefik → HTTP Routers: **`happroxy-panel@docker`**, **`happroxy-sub@docker`**.
+В Traefik → HTTP Routers: `happroxy-panel@docker`, `happroxy-sub@docker`.
 
 ### Перезапуск (с Traefik)
 
@@ -114,6 +125,8 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --force
 ```
 
 > `repair-panel.sh` и `update.sh` автоматически используют Traefik overlay, если в `.env` задан `PANEL_DOMAIN`.
+
+
 
 ### Сертификаты для Hysteria2
 
@@ -132,19 +145,25 @@ docker restart happroxy_3xui
 0 4 * * * root cd /opt/happroxy && bash scripts/sync-traefik-certs.sh && docker restart happroxy_3xui
 ```
 
+
+
 ### Переменные `.env` (HTTPS)
 
-| Переменная | Пример |
-|------------|--------|
-| `SERVER_IP` | публичный IPv4 VM |
-| `PANEL_DOMAIN` | `vpn.example.com` |
-| `USE_HTTPS` | `true` |
-| `TRAEFIK_CERT_RESOLVER` | `le` |
-| `TRAEFIK_ACME_FILE` | путь к `acme.json` Traefik на хосте |
 
-File-provider Traefik (опционально): [`config/traefik/happroxy.yml`](config/traefik/happroxy.yml).
+| Переменная              | Пример                              |
+| ----------------------- | ----------------------------------- |
+| `SERVER_IP`             | публичный IPv4 VM                   |
+| `PANEL_DOMAIN`          | `vpn.example.com`                   |
+| `USE_HTTPS`             | `true`                              |
+| `TRAEFIK_CERT_RESOLVER` | `le`                                |
+| `TRAEFIK_ACME_FILE`     | путь к `acme.json` Traefik на хосте |
+
+
+File-provider Traefik (опционально): `[config/traefik/happroxy.yml](config/traefik/happroxy.yml)`.
 
 ---
+
+
 
 ## URL и доступ
 
@@ -152,13 +171,15 @@ File-provider Traefik (опционально): [`config/traefik/happroxy.yml`](
 bash scripts/show-urls.sh
 ```
 
-| Что | URL |
-|-----|-----|
-| Панель | `https://<PANEL_DOMAIN><webBasePath>/` — путь из БД, **не всегда `/`** |
-| Подписка | `https://<PANEL_DOMAIN>/sub/family/<subId>` |
-| Панель напрямую (без Traefik) | `http://<SERVER_IP>:38471<webBasePath>/` |
 
-**404 на `https://domain/`** — норма: откройте URL из `show-urls.sh` или:
+| Что                           | URL                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| Панель                        | `https://<PANEL_DOMAIN><webBasePath>/` — путь из БД, **не всегда** `/` |
+| Подписка                      | `https://<PANEL_DOMAIN>/sub/family/<subId>`                            |
+| Панель напрямую (без Traefik) | `http://<SERVER_IP>:38471<webBasePath>/`                               |
+
+
+**404 на** `https://domain/` — норма: откройте URL из `show-urls.sh` или:
 
 ```bash
 sudo bash scripts/repair-panel.sh --reset-web-path
@@ -166,29 +187,38 @@ sudo bash scripts/repair-panel.sh --reset-web-path
 
 ---
 
+
+
 ## Настройка 3X-UI
 
 Панель на **русском**. Первый вход: `admin` / `admin` → сразу смените пароль.
 
 ### Панель → Подписка
 
-| Поле | Значение |
-|------|----------|
-| **Включить подписку** | да |
-| **Прослушивание IP** | **пусто** |
-| **Порт подписки** | `2096` |
-| **URI-путь** | `/sub/family/` |
-| **URI обратного прокси** | `https://<PANEL_DOMAIN>/sub/family/` |
-| **Заголовок подписки** | `Семейный VPN` (= `Name` в routing JSON) |
-| **Интервал обновления** | `6` ч |
+
+| Поле                     | Значение                                 |
+| ------------------------ | ---------------------------------------- |
+| **Включить подписку**    | да                                       |
+| **Прослушивание IP**     | **пусто**                                |
+| **Порт подписки**        | `2096`                                   |
+| **URI-путь**             | `/sub/family/`                           |
+| **URI обратного прокси** | `https://<PANEL_DOMAIN>/sub/family/`     |
+| **Заголовок подписки**   | `Семейный VPN` (= `Name` в routing JSON) |
+| **Интервал обновления**  | `6` ч                                    |
+
+
+
 
 ### Входящие подключения
 
-| Имя | Протокол | Порт | Примечание |
-|-----|----------|------|------------|
-| `hy2-main` | Hysteria2 | 4443 | TLS: `/root/cert/fullchain.pem` + `privkey.pem` |
-| `ss-fallback` | Shadowsocks 2022 | 8388 | **основной для Happ** (`2022-blake3-aes-256-gcm`) |
-| `vmess-tcp` | VMess TCP | 16888 | без TLS, запасной |
+
+| Имя             | Протокол         | Порт  | Примечание                                        |
+| --------------- | ---------------- | ----- | ------------------------------------------------- |
+| `vless-reality` | VLESS + Reality  | 4433  | **рекомендуемый** (`setup-vless-reality.sh`)      |
+| `hy2-main`      | Hysteria2        | 4443  | TLS: `/root/cert/fullchain.pem` + `privkey.pem`   |
+| `ss-fallback`   | Shadowsocks 2022 | 8388  | fallback до миграции (`2022-blake3-aes-256-gcm`)  |
+| `vmess-tcp`     | VMess TCP        | 16888 | без TLS, legacy                                   |
+
 
 У каждого inbound: **Стратегия адреса** → `<PANEL_DOMAIN>` (или IP без домена).
 
@@ -200,25 +230,40 @@ Email-метки (`family-alice`, …), лимит IP `3`, привязка к i
 
 ---
 
+
+
 ## Happ
 
-1. «+» → **Подписка по URL** → `https://<PANEL_DOMAIN>/sub/family/<subId>`
+1. «+» → **Подписка по URL** → plain URL или `happ://crypt5/...` (см. ниже)
 2. Обновить список (pull-to-refresh)
 3. Подключиться
 
 **Порядок протоколов (если что-то не работает):**
 
-1. **Shadowsocks** `8388` — проверенный рабочий
-2. **VMess** `16888`
-3. **Hysteria2** `4443` — нужен UDP + TLS (после `sync-traefik-certs.sh`)
+1. **VLESS Reality** `4433` — основной (Phase 2)
+2. **Shadowsocks** `8388` — fallback, пока `ENABLE_LEGACY_INBOUNDS=true`
+3. **VMess** `16888`
+4. **Hysteria2** `4443` — нужен UDP + TLS (после `sync-traefik-certs.sh`)
+
+### Encrypted subscription (Phase 2)
+
+```bash
+bash scripts/generate-crypto-subscription.sh
+```
+
+Выдаёт `happ://crypt5/...` — адрес подписки скрыт от пользователя. Раздайте семье **crypto-ссылку**, не plain HTTPS URL.
+
+После смены subId или миграции — перегенерировать и переимпортировать в Happ.
 
 После правок routing — **обновить подписку** в Happ.
 
 ---
 
+
+
 ## Маршрутизация (RU)
 
-Шаблон: [`config/happ-routing.json`](config/happ-routing.json) — RU/private напрямую, остальное через VPN.
+Шаблон: `[config/happ-routing.json](config/happ-routing.json)` — RU/private напрямую, остальное через VPN.
 
 ```bash
 bash scripts/generate-routing-deeplink.sh
@@ -230,29 +275,40 @@ bash scripts/generate-routing-deeplink.sh
 
 ---
 
+
+
 ## Скрипты
 
-| Скрипт | Назначение |
-|--------|------------|
-| `install.sh` | Первичная установка (интерактивно: IP + домен) |
-| `setup-https.sh` | Домен + Traefik labels + HTTPS subURI |
-| `repair-panel.sh` | SQLite: subListen, subURI, удаление Trojan:8443 |
-| `show-urls.sh` | Panel + subscription URL (webBasePath) |
-| `verify-traefik.sh` | Labels, сеть `web`, правила Traefik |
-| `generate-routing-deeplink.sh` | Happ routing deeplink |
-| `diagnose-client.sh` | Нет интернета на клиенте |
-| `sync-traefik-certs.sh` | LE из acme.json → `/opt/happdata/cert/` |
-| `healthcheck.sh` | Порты, контейнер, подписка |
-| `backup.sh` / `update.sh` | Бэкап / обновление образа |
-| `configure-firewall.sh` | UFW |
-| `validate.sh` | Проверка репозитория |
-| `acceptance-test.sh` | Чеклист перед выдачей семье |
+
+| Скрипт                         | Назначение                                      |
+| ------------------------------ | ----------------------------------------------- |
+| `setup-vless-reality.sh`       | VLESS Reality inbound (Phase 2)                 |
+| `generate-crypto-subscription.sh` | `happ://crypt5/...` encrypted sub            |
+| `migrate-phase2.sh`            | Отключить SS/VMess/HY2 после проверки VLESS     |
+| `install.sh`                   | Первичная установка (интерактивно: IP + домен)  |
+| `setup-https.sh`               | Домен + Traefik labels + HTTPS subURI           |
+| `repair-panel.sh`              | SQLite: subListen, subURI, удаление Trojan:8443 |
+| `show-urls.sh`                 | Panel + subscription URL (webBasePath)          |
+| `verify-traefik.sh`            | Labels, сеть `web`, правила Traefik             |
+| `generate-routing-deeplink.sh` | Happ routing deeplink                           |
+| `diagnose-client.sh`           | Нет интернета на клиенте                        |
+| `sync-traefik-certs.sh`        | LE из acme.json → `/opt/happdata/cert/`         |
+| `healthcheck.sh`               | Порты, контейнер, подписка                      |
+| `backup.sh` / `update.sh`      | Бэкап / обновление образа                       |
+| `configure-firewall.sh`        | UFW                                             |
+| `validate.sh`                  | Проверка репозитория                            |
+| `acceptance-test.sh`           | Чеклист перед выдачей семье                     |
+
 
 Запуск: `bash scripts/<имя>.sh` (не `./`, если нет execute bit).
 
 ---
 
+
+
 ## Эксплуатация
+
+
 
 ### Проверки
 
@@ -261,6 +317,8 @@ bash scripts/validate.sh
 bash scripts/healthcheck.sh
 bash scripts/acceptance-test.sh
 ```
+
+
 
 ### Бэкап / восстановление
 
@@ -278,6 +336,8 @@ sudo tar -xzf /opt/happdata/backups/happroxy_....tar.gz -C /opt/happdata
 docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 ```
 
+
+
 ### Cron
 
 ```cron
@@ -287,6 +347,8 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 0 4 * * * root cd /opt/happroxy && bash scripts/sync-traefik-certs.sh && docker restart happroxy_3xui
 0 4 * * 0 root cd /opt/happroxy && bash scripts/update.sh >> /var/log/happroxy-update.log 2>&1
 ```
+
+
 
 ### Данные на диске
 
@@ -301,33 +363,57 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 
 ---
 
+
+
 ## Устранение неполадок
 
-| Проблема | Решение |
-|----------|---------|
-| Crash loop / `bind: cannot assign requested address` | `sudo bash scripts/repair-panel.sh` |
-| Нет роутеров в Traefik | `docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --force-recreate` + `verify-traefik.sh` |
-| `https://domain/` → 404 | `bash scripts/show-urls.sh` или `--reset-web-path` |
-| Нет интернета в Happ | `diagnose-client.sh`; подключить **Shadowsocks** |
-| HY2 `n/a` | SS/VMess; для HY2 — `sync-traefik-certs.sh`, insecure в Happ |
-| Панель недоступна при Happ на ПК | `generate-routing-deeplink.sh` → обновить подписку |
-| Подписка с `127.0.0.1` | `repair-panel.sh`, проверить **URI обратного прокси** |
-| Xray не стартует | Trojan :8443 без cert — удалить inbound |
-| Routing не применяется | `Name` = **Заголовок подписки** |
+
+| Проблема                                             | Решение                                                                                                           |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Crash loop / `bind: cannot assign requested address` | `sudo bash scripts/repair-panel.sh`                                                                               |
+| Нет роутеров в Traefik                               | `docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --force-recreate` + `verify-traefik.sh` |
+| `https://domain/` → 404                              | `bash scripts/show-urls.sh` или `--reset-web-path`                                                                |
+| Нет интернета в Happ                                 | `diagnose-client.sh`; подключить **VLESS** или **Shadowsocks**                                                    |
+| Нет vless:// в подписке                              | `sudo bash scripts/setup-vless-reality.sh`, обновить подписку                                                   |
+| HY2 `n/a`                                            | SS/VMess; для HY2 — `sync-traefik-certs.sh`, insecure в Happ                                                      |
+| Панель недоступна при Happ на ПК                     | `generate-routing-deeplink.sh` → обновить подписку                                                                |
+| Подписка с `127.0.0.1`                               | `repair-panel.sh`, проверить **URI обратного прокси**                                                             |
+| Xray не стартует                                     | Trojan :8443 без cert — удалить inbound                                                                           |
+| Routing не применяется                               | `Name` = **Заголовок подписки**                                                                                   |
+
 
 Логи: `docker logs happroxy_3xui --tail 50`
 
 ---
 
+
+
 ## Фаза 2
 
-- [ ] VLESS + Reality
-- [ ] VMess WebSocket + TLS
-- [ ] Happ encrypted subscriptions (`happ://crypto...`)
-- [ ] Provider ID / App management
-- [ ] Миграция с SS/VMess на единый inbound
+### Быстрый путь
+
+```bash
+sudo bash scripts/setup-vless-reality.sh      # VLESS inbound
+bash scripts/diagnose-client.sh               # vless:// в подписке
+# Проверить VLESS в Happ на всех устройствах
+bash scripts/generate-crypto-subscription.sh  # happ://crypt5/...
+sudo bash scripts/migrate-phase2.sh --dry-run
+sudo bash scripts/migrate-phase2.sh --apply   # отключить SS/VMess/HY2
+```
+
+### Статус
+
+- [x] VLESS + Reality (`setup-vless-reality.sh`, порт `4433`)
+- [x] Happ encrypted subscriptions (`generate-crypto-subscription.sh`)
+- [x] Миграция на единый inbound (`migrate-phase2.sh`)
+- [ ] Provider ID / App management — после регистрации на [happ-proxy.com](https://happ-proxy.com)
+- [ ] VMess WebSocket + TLS — отложено, если VLESS не подойдёт на части устройств
+
+Переменные `.env`: `VLESS_PORT`, `REALITY_*`, `ENABLE_LEGACY_INBOUNDS` (по умолчанию `true` до миграции).
 
 ---
+
+
 
 ## Структура репозитория
 
@@ -338,6 +424,7 @@ happroxy/
 ├── .env.example
 ├── config/
 │   ├── happ-routing.json
+│   ├── inbound-vless-reality.json.template
 │   └── traefik/happroxy.yml      # опционально, file provider
 └── scripts/
     ├── lib/                      # load-env, prompt, data-dir, db, compose, public-url
@@ -348,3 +435,4 @@ happroxy/
     ├── verify-traefik.sh
     └── ...
 ```
+

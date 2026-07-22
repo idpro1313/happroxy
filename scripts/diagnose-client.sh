@@ -14,9 +14,11 @@ SERVER_IP="${SERVER_IP:-}"
 PANEL_PORT="${PANEL_PORT:-38471}"
 SUB_PORT="${SUB_PORT:-2096}"
 SUB_PATH="${SUB_PATH:-/sub/family}"
+VLESS_PORT="${VLESS_PORT:-4433}"
 HY2_PORT="${HY2_PORT:-4443}"
 SS_PORT="${SS_PORT:-8388}"
 VMESS_PORT="${VMESS_PORT:-16888}"
+ENABLE_LEGACY_INBOUNDS="${ENABLE_LEGACY_INBOUNDS:-true}"
 
 FAIL=0
 WARN=0
@@ -59,17 +61,26 @@ check_xray_logs() {
 check_ports() {
   log "=== Listening ports ==="
   local p
-  for p in "${PANEL_PORT}" "${SUB_PORT}" "${HY2_PORT}" "${SS_PORT}" "${VMESS_PORT}"; do
+  for p in "${PANEL_PORT}" "${SUB_PORT}" "${VLESS_PORT}"; do
     if ss -tln 2>/dev/null | grep -q ":${p} "; then
       log "TCP :${p} — listening"
     else
       fail "TCP :${p} — NOT listening"
     fi
   done
-  if ss -uln 2>/dev/null | grep -q ":${HY2_PORT} "; then
-    log "UDP :${HY2_PORT} — listening"
-  else
-    warn "UDP :${HY2_PORT} — not listening (Hysteria2 may fail; use Shadowsocks)"
+  if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
+    for p in "${HY2_PORT}" "${SS_PORT}" "${VMESS_PORT}"; do
+      if ss -tln 2>/dev/null | grep -q ":${p} "; then
+        log "TCP :${p} — listening"
+      else
+        fail "TCP :${p} — NOT listening"
+      fi
+    done
+    if ss -uln 2>/dev/null | grep -q ":${HY2_PORT} "; then
+      log "UDP :${HY2_PORT} — listening"
+    else
+      warn "UDP :${HY2_PORT} — not listening (Hysteria2 may fail; use VLESS or Shadowsocks)"
+    fi
   fi
 }
 
@@ -127,9 +138,12 @@ check_subscription() {
     warn "Public IP ${SERVER_IP:-?} not found in subscription links"
   fi
 
-  grep -qE 'hy2://|hysteria2://' <<<"${decoded}" && log "Found Hysteria2 link" || warn "No hy2:// link in subscription"
-  grep -q 'ss://' <<<"${decoded}" && log "Found Shadowsocks link" || warn "No ss:// link in subscription"
-  grep -q 'vmess://' <<<"${decoded}" && log "Found VMess link" || warn "No vmess:// link in subscription"
+  grep -qE 'vless://' <<<"${decoded}" && log "Found VLESS link" || warn "No vless:// link in subscription (run: sudo bash scripts/setup-vless-reality.sh)"
+  if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
+    grep -qE 'hy2://|hysteria2://' <<<"${decoded}" && log "Found Hysteria2 link" || warn "No hy2:// link in subscription"
+    grep -q 'ss://' <<<"${decoded}" && log "Found Shadowsocks link" || warn "No ss:// link in subscription"
+    grep -q 'vmess://' <<<"${decoded}" && log "Found VMess link" || warn "No vmess:// link in subscription"
+  fi
 }
 
 check_server_outbound() {
@@ -169,13 +183,20 @@ check_external_ports() {
   [[ -n "${SERVER_IP}" ]] || { warn "SERVER_IP not set — skip external port probe"; return; }
 
   local port
-  for port in "${SS_PORT}" "${VMESS_PORT}" "${HY2_PORT}"; do
-    if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${port}" 2>/dev/null; then
-      log "TCP ${SERVER_IP}:${port} — OK"
-    else
-      fail "TCP ${SERVER_IP}:${port} — NOT reachable (UFW / listen / routing)"
-    fi
-  done
+  if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${VLESS_PORT}" 2>/dev/null; then
+    log "TCP ${SERVER_IP}:${VLESS_PORT} — OK"
+  else
+    fail "TCP ${SERVER_IP}:${VLESS_PORT} — NOT reachable (UFW / listen / routing)"
+  fi
+  if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
+    for port in "${SS_PORT}" "${VMESS_PORT}" "${HY2_PORT}"; do
+      if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${port}" 2>/dev/null; then
+        log "TCP ${SERVER_IP}:${port} — OK"
+      else
+        fail "TCP ${SERVER_IP}:${port} — NOT reachable (UFW / listen / routing)"
+      fi
+    done
+  fi
 }
 
 check_live_connections() {
@@ -193,7 +214,7 @@ print_client_hints() {
   log "=== Client (Happ) checklist ==="
   cat <<EOF
 1. Disconnect Happ — интернет на ПК должен вернуться.
-2. В Happ сначала VMess (16888, без TLS), затем Shadowsocks (8388), не Hysteria2.
+2. В Happ сначала VLESS (${VLESS_PORT}, Reality), затем Shadowsocks (${SS_PORT}) если legacy включён.
 3. Временно очистите «Правила маршрутизации» в панели (GlobalProxy ломает всё, если прокси не работает).
 4. Обновите подписку в Happ после любых правок на сервере.
 5. На Windows: режим TUN — попробуйте Proxy mode в настройках Happ.
@@ -219,7 +240,7 @@ main() {
     exit 1
   fi
   if [[ "${WARN}" -gt 0 ]]; then
-    log "Result: OK with warnings — try Shadowsocks on client"
+    log "Result: OK with warnings — try VLESS or Shadowsocks on client"
     exit 0
   fi
   log "Result: server looks OK — problem likely on client routing or protocol choice"

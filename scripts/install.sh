@@ -217,8 +217,10 @@ or set a new password in the panel UI.
 Next steps:
   1. Change admin password in panel
   2. Configure inbounds — README.md § «Настройка 3X-UI»
+     Or Phase 2: sudo bash scripts/setup-vless-reality.sh
   3. bash scripts/show-urls.sh  — panel and subscription URLs
   4. Import subscription URL into Happ
+     Encrypted: bash scripts/generate-crypto-subscription.sh
 
 Health:   bash scripts/healthcheck.sh
 Backup:   bash scripts/backup.sh

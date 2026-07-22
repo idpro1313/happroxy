@@ -1,0 +1,46 @@
+{
+  "remark": "vless-reality",
+  "enable": true,
+  "listen": "",
+  "port": "{{VLESS_PORT}}",
+  "protocol": "vless",
+  "settings": {
+    "clients": [],
+    "decryption": "none",
+    "fallbacks": []
+  },
+  "streamSettings": {
+    "network": "tcp",
+    "security": "reality",
+    "externalProxy": [],
+    "realitySettings": {
+      "show": false,
+      "xver": 0,
+      "dest": "{{REALITY_DEST}}",
+      "serverNames": ["{{REALITY_SNI}}"],
+      "privateKey": "{{REALITY_PRIVATE_KEY}}",
+      "minClientVer": "",
+      "maxClientVer": "",
+      "maxTimediff": 0,
+      "shortIds": ["{{REALITY_SHORT_ID}}"],
+      "settings": {
+        "publicKey": "{{REALITY_PUBLIC_KEY}}",
+        "fingerprint": "chrome",
+        "spiderX": "/"
+      }
+    },
+    "tcpSettings": {
+      "acceptProxyProtocol": false,
+      "header": {
+        "type": "none"
+      }
+    }
+  },
+  "sniffing": {
+    "enabled": true,
+    "destOverride": ["http", "tls", "quic", "fakedns"],
+    "metadataOnly": false,
+    "routeOnly": false
+  },
+  "tag": "inbound-{{VLESS_PORT}}"
+}

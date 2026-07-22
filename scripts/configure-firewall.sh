@@ -13,11 +13,13 @@ fi
 
 PANEL_PORT="${PANEL_PORT:-38471}"
 SUB_PORT="${SUB_PORT:-2096}"
+VLESS_PORT="${VLESS_PORT:-4433}"
 HY2_PORT="${HY2_PORT:-4443}"
 SS_PORT="${SS_PORT:-8388}"
 VMESS_PORT="${VMESS_PORT:-16888}"
 TROJAN_PORT="${TROJAN_PORT:-8443}"
 ENABLE_TROJAN="${ENABLE_TROJAN:-false}"
+ENABLE_LEGACY_INBOUNDS="${ENABLE_LEGACY_INBOUNDS:-true}"
 
 # Ports that must stay untouched on this VM (Traefik, Portainer, wg-dashboard).
 RESERVED_PORTS=(80 443 8080 8000 9443 10086 17998)
@@ -76,10 +78,14 @@ configure_ufw() {
 
   ufw allow "${PANEL_PORT}/tcp" comment '3X-UI panel' >/dev/null
   ufw allow "${SUB_PORT}/tcp" comment '3X-UI subscription' >/dev/null
-  ufw allow "${HY2_PORT}/udp" comment 'Hysteria2 UDP' >/dev/null
-  ufw allow "${HY2_PORT}/tcp" comment 'Hysteria2 TCP' >/dev/null
-  ufw allow "${SS_PORT}/tcp" comment 'Shadowsocks' >/dev/null
-  ufw allow "${VMESS_PORT}/tcp" comment 'VMess' >/dev/null
+  ufw allow "${VLESS_PORT}/tcp" comment 'VLESS Reality' >/dev/null
+
+  if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
+    ufw allow "${HY2_PORT}/udp" comment 'Hysteria2 UDP' >/dev/null
+    ufw allow "${HY2_PORT}/tcp" comment 'Hysteria2 TCP' >/dev/null
+    ufw allow "${SS_PORT}/tcp" comment 'Shadowsocks' >/dev/null
+    ufw allow "${VMESS_PORT}/tcp" comment 'VMess' >/dev/null
+  fi
 
   if [[ "${ENABLE_TROJAN}" == "true" ]]; then
     ufw allow "${TROJAN_PORT}/tcp" comment 'Trojan' >/dev/null
@@ -96,9 +102,13 @@ main() {
   log "Checking ports..."
   check_port_free "${PANEL_PORT}" "3X-UI panel"
   check_port_free "${SUB_PORT}" "3X-UI subscription"
-  check_hy2_port
-  check_port_free "${SS_PORT}" "Shadowsocks"
-  check_port_free "${VMESS_PORT}" "VMess"
+  check_port_free "${VLESS_PORT}" "VLESS Reality"
+
+  if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
+    check_hy2_port
+    check_port_free "${SS_PORT}" "Shadowsocks"
+    check_port_free "${VMESS_PORT}" "VMess"
+  fi
 
   if [[ "${ENABLE_TROJAN}" == "true" ]]; then
     check_port_free "${TROJAN_PORT}" "Trojan"

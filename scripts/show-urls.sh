@@ -34,10 +34,14 @@ main() {
 Panel:        ${panel_url}
 Subscription: ${sub_base}<subId>
 
+Encrypted:    bash scripts/generate-crypto-subscription.sh
+              → happ://crypt5/... for family (hides plain URL)
+
 Notes:
   - 404 on https://${PANEL_DOMAIN:-<domain>}/ alone is normal if webBasePath is not "/"
   - Subscription path /sub/... is separate (Traefik → port ${SUB_PORT:-2096})
   - Reset panel to root path: sudo bash scripts/repair-panel.sh --reset-web-path
+  - Phase 2 VLESS: sudo bash scripts/setup-vless-reality.sh
 
 EOF
 }

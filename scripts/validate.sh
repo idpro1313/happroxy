@@ -49,7 +49,7 @@ check_bash_syntax() {
 }
 
 check_env_example() {
-  local required=(DATA_DIR SERVER_IP PANEL_PORT HY2_PORT SS_PORT VMESS_PORT TROJAN_PORT)
+  local required=(DATA_DIR SERVER_IP PANEL_PORT VLESS_PORT HY2_PORT SS_PORT VMESS_PORT TROJAN_PORT)
   local key
   for key in "${required[@]}"; do
     if grep -q "^${key}=" "${PROJECT_DIR}/.env.example"; then
@@ -65,7 +65,7 @@ check_reserved_ports() {
   source "${SCRIPT_DIR}/lib/load-env.sh"
   load_env_file "${PROJECT_DIR}/.env.example"
   local reserved=(80 443 8080 8000 9443 10086 17998)
-  local ports=("${PANEL_PORT:-38471}" "${HY2_PORT:-4443}" "${SS_PORT:-8388}" "${VMESS_PORT:-16888}" "${TROJAN_PORT:-8443}")
+  local ports=("${PANEL_PORT:-38471}" "${VLESS_PORT:-4433}" "${HY2_PORT:-4443}" "${SS_PORT:-8388}" "${VMESS_PORT:-16888}" "${TROJAN_PORT:-8443}")
   local p r
   for p in "${ports[@]}"; do
     for r in "${reserved[@]}"; do
@@ -85,6 +85,7 @@ main() {
   check_file "${PROJECT_DIR}/.gitignore"
   check_file "${PROJECT_DIR}/README.md"
   check_file "${PROJECT_DIR}/config/happ-routing.json"
+  check_file "${PROJECT_DIR}/config/inbound-vless-reality.json.template"
   check_file "${PROJECT_DIR}/scripts/lib/load-env.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/load-env.sh"
   check_file "${PROJECT_DIR}/scripts/lib/data-dir.sh"
@@ -100,7 +101,16 @@ main() {
   check_file "${PROJECT_DIR}/config/traefik/happroxy.yml"
   check_file "${PROJECT_DIR}/docker-compose.traefik.yml"
 
-  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik; do
+  check_file "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
+  check_bash_syntax "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
+  check_file "${PROJECT_DIR}/scripts/lib/vless-inbound.py"
+  if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/vless-inbound.py" 2>/dev/null; then
+    log "OK python: scripts/lib/vless-inbound.py"
+  else
+    fail "Python syntax error: scripts/lib/vless-inbound.py"
+  fi
+
+  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done
