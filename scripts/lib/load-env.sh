@@ -7,6 +7,9 @@ load_env_file() {
 
   local line key value
   while IFS= read -r line || [[ -n "${line}" ]]; do
+    # Strip Windows CR if present
+    line="${line//$'\r'/}"
+
     [[ -z "${line//[[:space:]]/}" ]] && continue
     [[ "${line}" =~ ^[[:space:]]*# ]] && continue
 
@@ -16,6 +19,7 @@ load_env_file() {
 
       value="${value#"${value%%[![:space:]]*}"}"
       value="${value%"${value##*[![:space:]]}"}"
+      value="${value//$'\r'/}"
 
       if [[ "${value}" =~ ^\"(.*)\"$ ]]; then
         value="${BASH_REMATCH[1]}"
@@ -23,7 +27,12 @@ load_env_file() {
         value="${BASH_REMATCH[1]}"
       fi
 
-      export "${key}=${value}"
+      # Avoid export failures on odd values; assign then export
+      if ! printf -v "${key}" '%s' "${value}" 2>/dev/null; then
+        printf '[load-env] WARN: skip invalid key %s\n' "${key}" >&2
+        continue
+      fi
+      export "${key}"
     fi
   done < "${file}"
 }

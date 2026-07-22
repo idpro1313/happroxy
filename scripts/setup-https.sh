@@ -5,9 +5,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-log() { printf '[setup-https] %s\n' "$*"; }
+log() { printf '[setup-https] %s\n' "$*" >&2; }
 warn() { printf '[setup-https] WARN: %s\n' "$*" >&2; }
 die() { printf '[setup-https] ERROR: %s\n' "$*" >&2; exit 1; }
+
+fix_script_crlf() {
+  local f
+  for f in "${SCRIPT_DIR}"/*.sh "${SCRIPT_DIR}"/lib/*.sh; do
+    [[ -f "${f}" ]] || continue
+    if grep -q $'\r' "${f}" 2>/dev/null; then
+      sed -i 's/\r$//' "${f}"
+      log "Fixed CRLF: ${f#${PROJECT_DIR}/}"
+    fi
+  done
+}
 
 on_err() {
   local ec=$?
@@ -124,21 +135,38 @@ run_certbot() {
 }
 
 main() {
-  log "Starting HTTPS setup (happroxy)..."
+  log "Starting HTTPS setup (happroxy), args: $*"
+  fix_script_crlf
+  log "Step 1/8: check root..."
   require_root
+  log "Step 2/8: cd ${PROJECT_DIR}..."
   cd "${PROJECT_DIR}" || die "Cannot cd to ${PROJECT_DIR}"
 
   local domain="" email="" skip_certbot=false skip_traefik=false traefik_dir=""
   local use_docker_labels=true use_file_provider=false
+
+  log "Step 3/8: parse arguments..."
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --domain) domain="$2"; shift 2 ;;
-      --email) email="$2"; shift 2 ;;
+      --domain)
+        [[ $# -ge 2 ]] || die "Missing value for --domain"
+        domain="$2"
+        shift 2
+        ;;
+      --email)
+        [[ $# -ge 2 ]] || die "Missing value for --email"
+        email="$2"
+        shift 2
+        ;;
       --docker-labels) use_docker_labels=true; skip_certbot=true; shift ;;
       --file-provider) use_file_provider=true; use_docker_labels=false; shift ;;
       --skip-certbot) skip_certbot=true; shift ;;
       --skip-traefik) skip_traefik=true; shift ;;
-      --traefik-dir) traefik_dir="$2"; shift 2 ;;
+      --traefik-dir)
+        [[ $# -ge 2 ]] || die "Missing value for --traefik-dir"
+        traefik_dir="$2"
+        shift 2
+        ;;
       -h|--help) usage; exit 0 ;;
       *) die "Unknown option: $1" ;;
     esac
@@ -149,15 +177,21 @@ main() {
     skip_certbot=true
   fi
 
+  log "Step 4/8: load .env..."
+  [[ -f "${PROJECT_DIR}/.env" ]] || die ".env not found — run install.sh first"
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/load-env.sh"
-  load_env_file "${PROJECT_DIR}/.env"
+  trap - ERR
+  load_env_file "${PROJECT_DIR}/.env" || die "Failed to read .env"
+  trap on_err ERR
 
   domain="${domain:-${PANEL_DOMAIN:-vpn.idpro13.ru}}"
-  [[ -n "${SERVER_IP:-}" ]] || die "Set SERVER_IP in .env"
+  log "Step 5/8: validate SERVER_IP (got: ${SERVER_IP:-<empty>})..."
+  [[ -n "${SERVER_IP:-}" ]] || die "Set SERVER_IP in .env (e.g. SERVER_IP=31.15.19.102)"
 
   log "Domain: ${domain}"
   log "Server IP: ${SERVER_IP}"
+  log "Step 6/8: update .env + DNS check..."
   check_dns "${domain}" "${SERVER_IP}" || warn "Continue after fixing DNS if HTTPS fails."
 
   update_env_domain "${domain}"
@@ -173,6 +207,7 @@ main() {
   local sub_port="${SUB_PORT:-2096}"
 
   if [[ "${skip_traefik}" != "true" ]]; then
+    log "Step 7/8: Traefik docker labels..."
     if [[ "${use_docker_labels}" == "true" ]]; then
       apply_traefik_docker_labels
     else
@@ -196,6 +231,7 @@ main() {
     fi
   fi
 
+  log "Step 8/8: repair-panel + optional cert sync..."
   log "Updating 3X-UI subscription settings (HTTPS subURI)..."
   if ! bash "${SCRIPT_DIR}/repair-panel.sh"; then
     die "repair-panel.sh failed"
@@ -237,6 +273,8 @@ HTTP→HTTPS redirect already configured in your Traefik entrypoint web.
 ================================================================================
 
 EOF
+  log "Finished OK."
 }
 
 main "$@"
+exit $?
