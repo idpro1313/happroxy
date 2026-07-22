@@ -24,7 +24,7 @@ main() {
   bash "${SCRIPT_DIR}/healthcheck.sh"
 
   log "Checking subscription contains public IP (requires at least one client)..."
-  local sub_url="https://${SERVER_IP}:${PANEL_PORT}${SUB_PATH}/"
+  local sub_url="http://${SERVER_IP}:${SUB_PORT}${SUB_PATH}/"
   log "Manual step: open a client subscription URL in browser, e.g.:"
   log "  ${sub_url}<client_subId>"
   log "Verify response includes hy2://, ss://, or vmess:// with address ${SERVER_IP}"

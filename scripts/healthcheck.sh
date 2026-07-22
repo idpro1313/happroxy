@@ -8,6 +8,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 if [[ -f "${PROJECT_DIR}/.env" ]]; then
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/load-env.sh"
+  source "${SCRIPT_DIR}/lib/db.sh"
   load_env_file "${PROJECT_DIR}/.env"
 fi
 
@@ -61,14 +62,20 @@ check_udp_port() {
 }
 
 check_panel_http() {
-  local code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-    "http://127.0.0.1:${PANEL_PORT}/" 2>/dev/null || echo "000")"
+  local web_path="/" db code url
+  if db="$(find_db_file 2>/dev/null || true)"; then
+    web_path="$(get_panel_web_path "${db}")"
+  fi
+
+  url="http://127.0.0.1:${PANEL_PORT}${web_path}"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${url}" 2>/dev/null || echo "000")"
 
   if [[ "${code}" =~ ^(200|301|302|401|403)$ ]]; then
-    log "Panel HTTP http://127.0.0.1:${PANEL_PORT}/ — ${code}"
+    log "Panel HTTP ${url} — ${code}"
+  elif [[ "${code}" == "404" && "${web_path}" == "/" ]]; then
+    warn "Panel HTTP ${url} — 404 (custom webBasePath? TCP check still validates service)"
   else
-    fail "Panel HTTP http://127.0.0.1:${PANEL_PORT}/ — ${code}"
+    fail "Panel HTTP ${url} — ${code}"
   fi
 }
 

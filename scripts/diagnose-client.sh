@@ -7,6 +7,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/load-env.sh"
+source "${SCRIPT_DIR}/lib/db.sh"
 load_env_file "${PROJECT_DIR}/.env"
 
 SERVER_IP="${SERVER_IP:-}"
@@ -72,34 +73,63 @@ check_ports() {
   fi
 }
 
-check_subscription() {
-  log "=== Subscription content ==="
-  local sub_path body
+fetch_subscription_raw() {
+  local sub_id="$1"
+  local sub_path url code
   sub_path="$(normalize_sub_path "${SUB_PATH}")"
 
-  # Try sub port first, then panel port path
-  body="$(curl -fsS --max-time 10 "http://127.0.0.1:${SUB_PORT}${sub_path}" 2>/dev/null | head -c 4096 || true)"
-  if [[ -z "${body}" ]]; then
-    body="$(curl -fsS --max-time 10 "http://127.0.0.1:${PANEL_PORT}${sub_path}" 2>/dev/null | head -c 4096 || true)"
+  for url in \
+    "http://127.0.0.1:${SUB_PORT}${sub_path}${sub_id}" \
+    "http://127.0.0.1:${PANEL_PORT}${sub_path}${sub_id}"; do
+    code="$(curl -s -o /tmp/happroxy_sub.txt -w '%{http_code}' --max-time 10 "${url}" 2>/dev/null || echo "000")"
+    if [[ "${code}" == "200" && -s /tmp/happroxy_sub.txt ]]; then
+      cat /tmp/happroxy_sub.txt
+      return 0
+    fi
+  done
+  return 1
+}
+
+check_subscription() {
+  log "=== Subscription content ==="
+  local db sub_id raw decoded
+  sub_id=""
+
+  if db="$(find_db_file 2>/dev/null)"; then
+    sub_id="$(get_first_sub_id "${db}" 2>/dev/null || true)"
   fi
 
-  if [[ -z "${body}" ]]; then
-    fail "Could not fetch subscription (add a client and subId in panel)."
-    log "Open in panel: Клиенты → Sub-ссылки"
+  if [[ -z "${sub_id}" ]]; then
+    fail "No enabled client subId in database — add a client in panel (Клиенты)."
     return
   fi
 
-  if [[ -n "${SERVER_IP}" ]] && grep -q "${SERVER_IP}" <<<"${body}"; then
-    log "Subscription contains public IP ${SERVER_IP} — OK"
-  elif grep -qE '127\.0\.0\.1|localhost' <<<"${body}"; then
-    fail "Subscription contains 127.0.0.1 — fix URI обратного прокси / inbound address strategy"
-  else
-    warn "Could not verify public IP in subscription body."
+  log "Using client subId: ${sub_id}"
+  if ! raw="$(fetch_subscription_raw "${sub_id}")"; then
+    fail "Could not fetch subscription for subId ${sub_id}"
+    log "Check: subPort=${SUB_PORT}, subPath=${SUB_PATH}, at least one inbound enabled"
+    return
   fi
 
-  grep -q 'hy2://\|hysteria2://\|hy2://' <<<"${body}" && log "Found Hysteria2 link" || warn "No hy2:// link in subscription"
-  grep -q 'ss://' <<<"${body}" && log "Found Shadowsocks link" || warn "No ss:// link in subscription"
-  grep -q 'vmess://' <<<"${body}" && log "Found VMess link" || warn "No vmess:// link in subscription"
+  if ! decoded="$(printf '%s' "${raw}" | decode_subscription_body 2>/dev/null)"; then
+    fail "Subscription response is empty"
+    return
+  fi
+
+  log "Decoded subscription preview:"
+  printf '%s\n' "${decoded}" | head -n 5 | sed 's/^/[diagnose]   /'
+
+  if [[ -n "${SERVER_IP}" ]] && grep -q "${SERVER_IP}" <<<"${decoded}"; then
+    log "Subscription contains public IP ${SERVER_IP} — OK"
+  elif grep -qE '127\.0\.0\.1|localhost' <<<"${decoded}"; then
+    fail "Subscription contains 127.0.0.1 — run: sudo bash scripts/repair-panel.sh, then refresh Happ"
+  else
+    warn "Public IP ${SERVER_IP:-?} not found in subscription links"
+  fi
+
+  grep -qE 'hy2://|hysteria2://' <<<"${decoded}" && log "Found Hysteria2 link" || warn "No hy2:// link in subscription"
+  grep -q 'ss://' <<<"${decoded}" && log "Found Shadowsocks link" || warn "No ss:// link in subscription"
+  grep -q 'vmess://' <<<"${decoded}" && log "Found VMess link" || warn "No vmess:// link in subscription"
 }
 
 check_server_outbound() {
@@ -113,19 +143,49 @@ check_server_outbound() {
 
 check_inbounds_db() {
   log "=== Inbounds in database ==="
-  local db
-  db="$(find "${DATA_DB_DIR}" -maxdepth 1 -name '*.db' 2>/dev/null | head -n1 || true)"
+  local db bad localhost_listen
+  db="$(find_db_file 2>/dev/null || true)"
   [[ -n "${db}" && -f "${db}" ]] || { warn "DB not found"; return; }
 
   if command -v sqlite3 >/dev/null 2>&1; then
-    sqlite3 "${db}" "SELECT id, remark, protocol, port, enable FROM inbounds;" 2>/dev/null | while read -r line; do
+    sqlite3 "${db}" "SELECT id, remark, protocol, port, COALESCE(listen,''), enable FROM inbounds;" 2>/dev/null | while read -r line; do
       log "  inbound: ${line}"
     done || true
-    local bad
-    bad="$(sqlite3 "${db}" "SELECT COUNT(*) FROM inbounds WHERE port=8443;" 2>/dev/null || echo 0)"
-    if [[ "${bad}" -gt 0 ]]; then
-      warn "Inbound on 8443 still present — may break Xray. Run: sudo bash scripts/repair-panel.sh"
+
+    localhost_listen="$(sqlite3 "${db}" "SELECT COUNT(*) FROM inbounds WHERE listen IN ('127.0.0.1','localhost') AND enable=1;" 2>/dev/null || echo 0)"
+    if [[ "${localhost_listen}" -gt 0 ]]; then
+      fail "Inbound listens on 127.0.0.1 only — external clients cannot connect. Clear «Слушать» in panel."
     fi
+
+    bad="$(sqlite3 "${db}" "SELECT COUNT(*) FROM inbounds WHERE port=8443 AND enable=1;" 2>/dev/null || echo 0)"
+    if [[ "${bad}" -gt 0 ]]; then
+      warn "Inbound on 8443 enabled — if TLS cert missing, Xray fails. Run: sudo bash scripts/repair-panel.sh"
+    fi
+  fi
+}
+
+check_external_ports() {
+  log "=== External reachability (from server to public IP) ==="
+  [[ -n "${SERVER_IP}" ]] || { warn "SERVER_IP not set — skip external port probe"; return; }
+
+  local port
+  for port in "${SS_PORT}" "${VMESS_PORT}" "${HY2_PORT}"; do
+    if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${port}" 2>/dev/null; then
+      log "TCP ${SERVER_IP}:${port} — OK"
+    else
+      fail "TCP ${SERVER_IP}:${port} — NOT reachable (UFW / listen / routing)"
+    fi
+  done
+}
+
+check_live_connections() {
+  log "=== Recent proxy activity (connect Happ, then re-run) ==="
+  local hits
+  hits="$(docker logs happroxy_3xui --tail 120 2>&1 | grep -Ei 'accepted|inbound|rejected|invalid' | tail -n 8 || true)"
+  if [[ -n "${hits}" ]]; then
+    printf '%s\n' "${hits}" | sed 's/^/[diagnose]   /'
+  else
+    warn "No recent accept/reject lines — client may not reach the server at all"
   fi
 }
 
@@ -133,7 +193,7 @@ print_client_hints() {
   log "=== Client (Happ) checklist ==="
   cat <<EOF
 1. Disconnect Happ — интернет на ПК должен вернуться.
-2. В Happ выберите Shadowsocks (8388), не Hysteria2 — проверьте интернет.
+2. В Happ сначала VMess (16888, без TLS), затем Shadowsocks (8388), не Hysteria2.
 3. Временно очистите «Правила маршрутизации» в панели (GlobalProxy ломает всё, если прокси не работает).
 4. Обновите подписку в Happ после любых правок на сервере.
 5. На Windows: режим TUN — попробуйте Proxy mode в настройках Happ.
@@ -147,9 +207,11 @@ main() {
 
   check_xray_logs
   check_ports
+  check_external_ports
   check_server_outbound
   check_inbounds_db
   check_subscription
+  check_live_connections
   print_client_hints
 
   if [[ "${FAIL}" -gt 0 ]]; then
