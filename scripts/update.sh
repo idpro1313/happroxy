@@ -19,14 +19,19 @@ main() {
     die "Docker is not installed."
   fi
 
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/load-env.sh"
+  source "${SCRIPT_DIR}/lib/compose.sh"
+  load_env_file "${PROJECT_DIR}/.env"
+
   log "Creating pre-update backup..."
   bash "${SCRIPT_DIR}/backup.sh"
 
   log "Pulling latest image..."
-  docker compose pull
+  compose_pull "${PROJECT_DIR}"
 
   log "Recreating container..."
-  docker compose up -d
+  compose_up "${PROJECT_DIR}"
 
   log "Waiting for panel to start..."
   sleep 5

@@ -233,7 +233,9 @@ main() {
 
   log "Using database: ${db}"
   log "Stopping container to avoid crash loop during repair..."
-  docker compose stop 2>/dev/null || docker stop happroxy_3xui 2>/dev/null || true
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/compose.sh"
+  compose_stop "${PROJECT_DIR}" 2>/dev/null || docker stop happroxy_3xui 2>/dev/null || true
 
   backup_db "${db}"
   if [[ "${reset_web_path}" == "true" ]]; then
@@ -246,7 +248,9 @@ main() {
   open_sub_port_firewall
 
   log "Starting container..."
-  docker compose up -d
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/compose.sh"
+  compose_up "${PROJECT_DIR}"
 
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/db.sh"

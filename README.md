@@ -71,8 +71,13 @@ docker restart happroxy_3xui
 Ручной перезапуск с Traefik overlay:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --force-recreate
+bash scripts/verify-traefik.sh
 ```
+
+В Traefik → HTTP Routers должны появиться **`happroxy-panel@docker`** и **`happroxy-sub@docker`**.
+
+> **Важно:** `repair-panel.sh` и `update.sh` теперь сохраняют Traefik overlay, если в `.env` задан `PANEL_DOMAIN`.
 
 Альтернатива (file provider, если добавите `--providers.file` в Traefik): [`config/traefik/happroxy.yml`](config/traefik/happroxy.yml), resolver `le`, upstream `172.18.0.1`.
 

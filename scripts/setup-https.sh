@@ -94,7 +94,9 @@ apply_traefik_docker_labels() {
   if [[ -z "${PANEL_DOMAIN:-}" ]]; then
     die "PANEL_DOMAIN is empty — update .env first"
   fi
-  if ! docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d; then
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/compose.sh"
+  if ! compose_up "${PROJECT_DIR}" --force-recreate; then
     die "docker compose failed — check: docker compose -f docker-compose.yml -f docker-compose.traefik.yml config"
   fi
   log "Container joined network 'web'. Traefik will pick up labels automatically."
