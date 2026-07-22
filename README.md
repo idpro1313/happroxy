@@ -34,6 +34,8 @@ sudo bash scripts/install.sh
 
 Путь задаётся переменной `DATA_DIR` в `.env` (по умолчанию `/opt/happdata`).
 
+Значения с пробелами в `.env` заключайте в кавычки, например: `SUB_PROFILE_TITLE="Family VPN"`.
+
 Код проекта (`happroxy/`) можно обновлять через `git pull` — данные остаются в `/opt/happdata`.
 
 ## Занятые порты на этой VM (не использовать)

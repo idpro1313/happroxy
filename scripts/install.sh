@@ -87,8 +87,14 @@ ensure_env() {
     cp "${example_file}" "${env_file}"
   fi
 
+  # Fix legacy unquoted values with spaces.
+  if grep -q '^SUB_PROFILE_TITLE=Family VPN$' "${env_file}" 2>/dev/null; then
+    sed -i 's/^SUB_PROFILE_TITLE=Family VPN/SUB_PROFILE_TITLE="Family VPN"/' "${env_file}"
+  fi
+
   # shellcheck disable=SC1091
-  source "${env_file}"
+  source "${SCRIPT_DIR}/lib/load-env.sh"
+  load_env_file "${env_file}"
 
   local detected_ip
   detected_ip="$(detect_public_ip)"
@@ -138,8 +144,6 @@ generate_self_signed_cert() {
     return
   fi
 
-  # shellcheck disable=SC1091
-  source "${PROJECT_DIR}/.env"
   local ip="${SERVER_IP:-127.0.0.1}"
 
   log "Generating self-signed certificate for IP ${ip}..."
@@ -166,8 +170,6 @@ start_stack() {
 }
 
 print_next_steps() {
-  # shellcheck disable=SC1091
-  source "${PROJECT_DIR}/.env"
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/data-dir.sh"
   cat <<EOF

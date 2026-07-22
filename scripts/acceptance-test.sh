@@ -7,7 +7,8 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 if [[ -f "${PROJECT_DIR}/.env" ]]; then
   # shellcheck disable=SC1091
-  source "${PROJECT_DIR}/.env"
+  source "${SCRIPT_DIR}/lib/load-env.sh"
+  load_env_file "${PROJECT_DIR}/.env"
 fi
 
 SERVER_IP="${SERVER_IP:?Set SERVER_IP in .env}"

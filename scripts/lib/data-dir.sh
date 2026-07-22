@@ -5,10 +5,9 @@ set -euo pipefail
 _happroxy_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _happroxy_project_dir="$(cd "${_happroxy_lib_dir}/../.." && pwd)"
 
-if [[ -f "${_happroxy_project_dir}/.env" ]]; then
-  # shellcheck disable=SC1091
-  source "${_happroxy_project_dir}/.env"
-fi
+# shellcheck disable=SC1091
+source "${_happroxy_lib_dir}/load-env.sh"
+load_env_file "${_happroxy_project_dir}/.env"
 
 DATA_DIR="${DATA_DIR:-/opt/happdata}"
 DATA_DB_DIR="${DATA_DIR}/db"

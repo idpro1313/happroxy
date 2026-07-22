@@ -62,7 +62,8 @@ check_env_example() {
 
 check_reserved_ports() {
   # shellcheck disable=SC1091
-  source "${PROJECT_DIR}/.env.example" 2>/dev/null || true
+  source "${SCRIPT_DIR}/lib/load-env.sh"
+  load_env_file "${PROJECT_DIR}/.env.example"
   local reserved=(80 443 8080 8000 9443 10086 17998)
   local ports=("${PANEL_PORT:-38471}" "${HY2_PORT:-4443}" "${SS_PORT:-8388}" "${VMESS_PORT:-16888}" "${TROJAN_PORT:-8443}")
   local p r
@@ -84,6 +85,8 @@ main() {
   check_file "${PROJECT_DIR}/.gitignore"
   check_file "${PROJECT_DIR}/README.md"
   check_file "${PROJECT_DIR}/config/happ-routing.json"
+  check_file "${PROJECT_DIR}/scripts/lib/load-env.sh"
+  check_bash_syntax "${PROJECT_DIR}/scripts/lib/load-env.sh"
   check_file "${PROJECT_DIR}/scripts/lib/data-dir.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/data-dir.sh"
 
