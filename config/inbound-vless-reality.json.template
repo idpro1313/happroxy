@@ -21,7 +21,7 @@
       "minClientVer": "",
       "maxClientVer": "",
       "maxTimediff": 0,
-      "shortIds": ["", "{{REALITY_SHORT_ID}}"],
+      "shortIds": ["{{REALITY_SHORT_ID}}"],
       "settings": {
         "publicKey": "{{REALITY_PUBLIC_KEY}}",
         "fingerprint": "chrome",

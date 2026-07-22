@@ -139,6 +139,53 @@ def sync_vless_inbound_uuids(conn: sqlite3.Connection) -> int:
     return 0
 
 
+def load_env_value(env_path: Path, key: str) -> str:
+    if not env_path.is_file():
+        return ""
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, _, val = line.partition("=")
+        if k.strip() != key:
+            continue
+        return val.strip().strip('"').strip("'")
+    return ""
+
+
+def fix_vless_reality_shortids(conn: sqlite3.Connection, short_id: str) -> int:
+    """Ensure subscription gets non-empty sid (Happ needs REALITY_SHORT_ID, not '')."""
+    if not short_id:
+        return 0
+    row = conn.execute(
+        """
+        SELECT id, stream_settings FROM inbounds
+        WHERE protocol='vless' OR remark='vless-reality'
+        ORDER BY enable DESC, id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if not row:
+        return 0
+    inbound_id, stream_raw = row
+    try:
+        stream = json.loads(stream_raw or "{}")
+    except json.JSONDecodeError:
+        return 0
+    rs = stream.get("realitySettings") or {}
+    current = rs.get("shortIds") or []
+    desired = [short_id]
+    if current == desired:
+        return 0
+    rs["shortIds"] = desired
+    stream["realitySettings"] = rs
+    conn.execute(
+        "UPDATE inbounds SET stream_settings=? WHERE id=?",
+        (json.dumps(stream, ensure_ascii=False), inbound_id),
+    )
+    return 1
+
+
 def fix_clients_table(conn: sqlite3.Connection) -> int:
     if not conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='clients' LIMIT 1"
@@ -155,19 +202,23 @@ def fix_clients_table(conn: sqlite3.Connection) -> int:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} DB_PATH", file=sys.stderr)
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} DB_PATH [ENV_FILE]", file=sys.stderr)
         return 2
 
     db_path = Path(sys.argv[1])
+    env_path = Path(sys.argv[2]) if len(sys.argv) > 2 else None
     if not db_path.is_file():
         print(f"Database not found: {db_path}", file=sys.stderr)
         return 1
+
+    short_id = load_env_value(env_path, "REALITY_SHORT_ID") if env_path else ""
 
     conn = sqlite3.connect(str(db_path))
     try:
         inbounds_fixed = fix_inbounds_settings(conn)
         vless_synced = sync_vless_inbound_uuids(conn)
+        shortids_fixed = fix_vless_reality_shortids(conn, short_id)
         clients_fixed = fix_clients_table(conn)
         conn.commit()
         print(
@@ -175,6 +226,7 @@ def main() -> int:
                 {
                     "inbounds_fixed": inbounds_fixed,
                     "vless_uuid_synced": vless_synced,
+                    "reality_shortids_fixed": shortids_fixed,
                     "clients_fixed": clients_fixed,
                 }
             )

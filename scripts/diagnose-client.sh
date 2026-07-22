@@ -42,10 +42,19 @@ check_xray_logs() {
     return
   fi
 
-  if docker exec happroxy_3xui sh -c 'pgrep -af xray 2>/dev/null || ps aux 2>/dev/null | grep -v grep | grep xray' | grep -q xray; then
+  if docker exec happroxy_3xui sh -c '
+    for p in /usr/local/x-ui/bin/xray-linux-amd64 /usr/local/x-ui/bin/xray /usr/local/bin/xray; do
+      [ -x "$p" ] && pgrep -f "$p" >/dev/null 2>&1 && exit 0
+    done
+    pgrep -af xray 2>/dev/null | grep -v grep | grep -q xray
+  ' 2>/dev/null; then
     log "Xray process is running inside container."
+  elif docker logs happroxy_3xui --tail 50 2>&1 | grep -q "Xray.*started"; then
+    warn "Xray process name not matched, but 'Xray started' found in logs — treating as OK."
+  elif ss -tln 2>/dev/null | grep -q ":${VLESS_PORT:-4433} "; then
+    warn "Xray process not detected, but VLESS port is listening — likely OK after restart."
   else
-    fail "Xray process not found in container — wait 30s after restart or run: sudo bash scripts/repair-panel.sh"
+    fail "Xray not running and VLESS port not listening — run: sudo bash scripts/repair-panel.sh"
   fi
 
   local errors

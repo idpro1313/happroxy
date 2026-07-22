@@ -71,8 +71,8 @@ sync_db() {
   if ! command -v python3 >/dev/null 2>&1; then
     die "python3 required"
   fi
-  log "Syncing client JSON (tgId, VLESS UUIDs)..."
-  python3 "${SCRIPT_DIR}/lib/fix-client-json.py" "${db}" | sed 's/^/[fix-vless] /'
+  log "Syncing client JSON (tgId, VLESS UUIDs, Reality shortIds)..."
+  python3 "${SCRIPT_DIR}/lib/fix-client-json.py" "${db}" "${PROJECT_DIR}/.env" | sed 's/^/[fix-vless] /'
 }
 
 main() {

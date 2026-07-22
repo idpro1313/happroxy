@@ -240,7 +240,7 @@ main() {
   backup_db "${db}"
   if command -v python3 >/dev/null 2>&1; then
     log "Fixing client JSON fields (tgId must be number)..."
-    python3 "${SCRIPT_DIR}/lib/fix-client-json.py" "${db}" | sed 's/^/[repair-panel] /'
+    python3 "${SCRIPT_DIR}/lib/fix-client-json.py" "${db}" "${PROJECT_DIR}/.env" | sed 's/^/[repair-panel] /'
   fi
   if [[ "${reset_web_path}" == "true" ]]; then
     set_setting "${db}" "webBasePath" "/"

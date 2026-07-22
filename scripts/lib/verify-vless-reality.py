@@ -122,6 +122,11 @@ def main() -> int:
             issues.append("Subscription pbk (public key) is empty")
         elif exp_pub and vless.get("pbk") != exp_pub:
             issues.append("Subscription pbk does not match REALITY_PUBLIC_KEY in .env")
+        if exp_sid and not vless.get("sid"):
+            issues.append(
+                f"Subscription sid is empty but REALITY_SHORT_ID={exp_sid} — "
+                "run: python3 scripts/lib/fix-client-json.py DB .env && docker restart happroxy_3xui"
+            )
         if exp_sid and vless.get("sid") and vless.get("sid") not in (exp_sid, ""):
             warnings.append(
                 f"Subscription sid={vless.get('sid')} differs from .env REALITY_SHORT_ID={exp_sid}"
