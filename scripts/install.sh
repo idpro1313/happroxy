@@ -195,14 +195,15 @@ If install.sh generated XUI_ADMIN_* values, use those after first login change
 or set a new password in the panel UI.
 
 Next steps:
-  1. Open the panel and change admin password
-  2. Настройте входящие — см. README.md, раздел «Настройка 3X-UI»
-  3. В Подписка: Прослушивание IP — пусто; URI обратного прокси: http://${SERVER_IP}:${SUB_PORT:-2096}${SUB_PATH:-/sub/family}/
-  4. Import subscription URL into Happ app
+  1. Change admin password in panel
+  2. Configure inbounds — README.md § «Настройка 3X-UI»
+  3. HTTPS (optional): bash scripts/setup-https.sh --domain vpn.example.com --docker-labels
+  4. bash scripts/show-urls.sh  — panel and subscription URLs
+  5. Import subscription URL into Happ
 
-Health check:  bash scripts/healthcheck.sh
-Backup:        bash scripts/backup.sh
-Update:        bash scripts/update.sh
+Health:   bash scripts/healthcheck.sh
+Backup:   bash scripts/backup.sh
+Update:   bash scripts/update.sh
 ================================================================================
 
 EOF

@@ -23,18 +23,18 @@ main() {
 
   bash "${SCRIPT_DIR}/healthcheck.sh"
 
-  log "Checking subscription contains public IP (requires at least one client)..."
-  local sub_url="http://${SERVER_IP}:${SUB_PORT}${SUB_PATH}/"
+  log "Checking subscription contains public IP or domain..."
+  local sub_url="https://${PANEL_DOMAIN:-${SERVER_IP}}${SUB_PATH:-/sub/family}/"
   log "Manual step: open a client subscription URL in browser, e.g.:"
   log "  ${sub_url}<client_subId>"
-  log "Verify response includes hy2://, ss://, or vmess:// with address ${SERVER_IP}"
+  log "Verify response includes hy2://, ss://, or vmess:// with address ${PANEL_DOMAIN:-${SERVER_IP}}"
 
   log ""
   log "Happ client manual checks:"
   log "  1. Import subscription URL in Happ (+ → Subscription URL)"
   log "  2. Pull to refresh server list"
-  log "  3. Connect via Hysteria2 (port ${HY2_PORT:-4443})"
-  log "  4. If UDP blocked, switch to Shadowsocks (port ${SS_PORT:-8388})"
+  log "  3. Connect via Shadowsocks (port ${SS_PORT:-8388}) first"
+  log "  4. Then VMess (${VMESS_PORT:-16888}) or Hysteria2 (${HY2_PORT:-4443})"
   log "  5. After routing rules configured, refresh subscription and verify split-tunnel"
 
   log ""

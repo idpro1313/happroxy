@@ -37,8 +37,8 @@ main() {
 
   log "Done. Restore with:"
   log "  sudo mkdir -p ${DATA_DIR}"
-  log "  sudo tar -xzf ${ARCHIVE} -C ${DATA_DIR}   # extracts db/ and cert/"
-  log "  docker compose -f ${PROJECT_DIR}/docker-compose.yml up -d"
+  log "  sudo tar -xzf ${ARCHIVE} -C ${DATA_DIR}"
+  log "  cd ${PROJECT_DIR} && docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d"
 }
 
 main "$@"
