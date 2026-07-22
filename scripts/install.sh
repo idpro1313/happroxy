@@ -116,12 +116,20 @@ ensure_env() {
 }
 
 ensure_dirs() {
-  mkdir -p "${PROJECT_DIR}/db" "${PROJECT_DIR}/cert" "${PROJECT_DIR}/backups"
-  chmod 700 "${PROJECT_DIR}/db" "${PROJECT_DIR}/cert"
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/data-dir.sh"
+
+  log "Persistent data directory: ${DATA_DIR}"
+  mkdir -p "${DATA_DB_DIR}" "${DATA_CERT_DIR}" "${DATA_BACKUP_DIR}"
+  chmod 700 "${DATA_DIR}" "${DATA_DB_DIR}" "${DATA_CERT_DIR}"
+  log "Created: ${DATA_DB_DIR}, ${DATA_CERT_DIR}, ${DATA_BACKUP_DIR}"
 }
 
 generate_self_signed_cert() {
-  local cert_dir="${PROJECT_DIR}/cert"
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/data-dir.sh"
+
+  local cert_dir="${DATA_CERT_DIR}"
   local key="${cert_dir}/selfsigned.key"
   local crt="${cert_dir}/selfsigned.crt"
 
@@ -160,10 +168,17 @@ start_stack() {
 print_next_steps() {
   # shellcheck disable=SC1091
   source "${PROJECT_DIR}/.env"
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/data-dir.sh"
   cat <<EOF
 
 ================================================================================
 happroxy / 3X-UI is running.
+
+Data dir:   ${DATA_DIR}
+  db/       panel database and settings
+  cert/     TLS certificates for inbounds
+  backups/  automatic backup archives
 
 Panel URL:  https://${SERVER_IP}:${PANEL_PORT}/
             (accept self-signed certificate warning in browser)
@@ -197,8 +212,8 @@ main() {
   ensure_packages
   ensure_docker
   ensure_swap
-  ensure_dirs
   ensure_env
+  ensure_dirs
   generate_self_signed_cert
   preflight_ports
   start_stack

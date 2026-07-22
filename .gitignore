@@ -1,7 +1,1 @@
 .env
-db/
-cert/
-pgdata/
-backups/
-*.tar.gz
-*.log

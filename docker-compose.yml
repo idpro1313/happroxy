@@ -12,8 +12,8 @@ services:
       XUI_MEMORY_LIMIT: "512"
       XUI_PORT: "${PANEL_PORT:-38471}"
     volumes:
-      - ./db:/etc/x-ui
-      - ./cert:/root/cert
+      - ${DATA_DIR:-/opt/happdata}/db:/etc/x-ui
+      - ${DATA_DIR:-/opt/happdata}/cert:/root/cert
     tty: true
     ports:
       - "${PANEL_PORT:-38471}:${PANEL_PORT:-38471}"

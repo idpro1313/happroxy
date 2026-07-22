@@ -49,7 +49,7 @@ check_bash_syntax() {
 }
 
 check_env_example() {
-  local required=(SERVER_IP PANEL_PORT HY2_PORT SS_PORT VMESS_PORT TROJAN_PORT)
+  local required=(DATA_DIR SERVER_IP PANEL_PORT HY2_PORT SS_PORT VMESS_PORT TROJAN_PORT)
   local key
   for key in "${required[@]}"; do
     if grep -q "^${key}=" "${PROJECT_DIR}/.env.example"; then
@@ -84,6 +84,8 @@ main() {
   check_file "${PROJECT_DIR}/.gitignore"
   check_file "${PROJECT_DIR}/README.md"
   check_file "${PROJECT_DIR}/config/happ-routing.json"
+  check_file "${PROJECT_DIR}/scripts/lib/data-dir.sh"
+  check_bash_syntax "${PROJECT_DIR}/scripts/lib/data-dir.sh"
 
   for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
@@ -95,6 +97,11 @@ main() {
   check_reserved_ports
 
   if command -v docker >/dev/null 2>&1; then
+    if docker compose -f "${PROJECT_DIR}/docker-compose.yml" config 2>/dev/null | grep -q '/opt/happdata'; then
+      log "OK docker compose uses external DATA_DIR volume"
+    else
+      fail "docker compose does not mount /opt/happdata"
+    fi
     if docker compose -f "${PROJECT_DIR}/docker-compose.yml" config >/dev/null 2>&1; then
       log "OK docker compose config"
     else
