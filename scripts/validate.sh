@@ -110,7 +110,12 @@ main() {
   else
     fail "Python syntax error: scripts/lib/subscription-ss-only.py"
   fi
-  check_file "${PROJECT_DIR}/scripts/lib/subscription-ss-only.py"
+  if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/restore-phase1-inbounds.py" 2>/dev/null; then
+    log "OK python: scripts/lib/restore-phase1-inbounds.py"
+  else
+    fail "Python syntax error: scripts/lib/restore-phase1-inbounds.py"
+  fi
+  check_file "${PROJECT_DIR}/scripts/lib/restore-phase1-inbounds.py"
   check_file "${PROJECT_DIR}/scripts/lib/fix-client-json.py"
   if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/fix-client-json.py" 2>/dev/null; then
     log "OK python: scripts/lib/fix-client-json.py"
@@ -136,7 +141,7 @@ main() {
     fail "Python syntax error: scripts/lib/reality-keys.py"
   fi
 
-  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2 fix-vless-client migrate-vless-port watch-vless-connect print-client-port-test disable-vless-inbound fix-happ-eof; do
+  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2 fix-vless-client migrate-vless-port watch-vless-connect print-client-port-test disable-vless-inbound fix-happ-eof restore-phase1; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done
