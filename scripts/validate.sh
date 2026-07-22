@@ -130,7 +130,7 @@ main() {
     fail "Python syntax error: scripts/lib/reality-keys.py"
   fi
 
-  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2 fix-vless-client migrate-vless-port watch-vless-connect print-client-port-test; do
+  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2 fix-vless-client migrate-vless-port watch-vless-connect print-client-port-test disable-vless-inbound; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done
