@@ -85,6 +85,26 @@ def load_client_records(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def normalize_tg_id(value) -> int:
+    if value is None or value == "":
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return 0
+        try:
+            return int(text)
+        except ValueError:
+            return 0
+    return 0
+
+
 def client_json_from_record(row: sqlite3.Row) -> dict:
     now = int(time.time() * 1000)
     client_uuid = row["uuid"] or str(uuid.uuid4())
@@ -96,7 +116,7 @@ def client_json_from_record(row: sqlite3.Row) -> dict:
         "totalGB": row["total_gb"] or 0,
         "expiryTime": row["expiry_time"] or 0,
         "enable": bool(row["enable"]),
-        "tgId": row["tg_id"] or "",
+        "tgId": normalize_tg_id(row["tg_id"]),
         "subId": row["sub_id"],
         "comment": row["comment"] or "",
         "reset": row["reset"] or 0,
@@ -118,7 +138,7 @@ def make_vless_client(source: dict | None) -> dict:
             "totalGB": source.get("totalGB", 0),
             "expiryTime": source.get("expiryTime", 0),
             "enable": True,
-            "tgId": source.get("tgId", ""),
+            "tgId": normalize_tg_id(source.get("tgId")),
             "subId": sub_id,
             "comment": source.get("comment", ""),
             "reset": source.get("reset", 0),
@@ -134,7 +154,7 @@ def make_vless_client(source: dict | None) -> dict:
         "totalGB": 0,
         "expiryTime": 0,
         "enable": True,
-        "tgId": "",
+        "tgId": 0,
         "subId": sub_id,
         "comment": "",
         "reset": 0,

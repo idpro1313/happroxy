@@ -123,6 +123,11 @@ main() {
 
   log "Inbound ${py_result}"
 
+  if command -v python3 >/dev/null 2>&1; then
+    log "Fixing client JSON fields (tgId)..."
+    python3 "${SCRIPT_DIR}/lib/fix-client-json.py" "${db}" | sed 's/^/[setup-vless] /'
+  fi
+
   set_env_kv "${PROJECT_DIR}/.env" "VLESS_PORT" "${VLESS_PORT}"
   set_env_kv "${PROJECT_DIR}/.env" "REALITY_DEST" "${REALITY_DEST}"
   set_env_kv "${PROJECT_DIR}/.env" "REALITY_SNI" "${REALITY_SNI}"

@@ -238,6 +238,10 @@ main() {
   compose_stop "${PROJECT_DIR}" 2>/dev/null || docker stop happroxy_3xui 2>/dev/null || true
 
   backup_db "${db}"
+  if command -v python3 >/dev/null 2>&1; then
+    log "Fixing client JSON fields (tgId must be number)..."
+    python3 "${SCRIPT_DIR}/lib/fix-client-json.py" "${db}" | sed 's/^/[repair-panel] /'
+  fi
   if [[ "${reset_web_path}" == "true" ]]; then
     set_setting "${db}" "webBasePath" "/"
     log "Reset webBasePath to / (panel at site root)"
