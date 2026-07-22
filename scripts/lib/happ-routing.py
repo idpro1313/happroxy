@@ -18,7 +18,6 @@ GEOSITE_URL = (
 
 REQUIRED_STRING_FIELDS = (
     "Name",
-    "GlobalProxy",
     "RemoteDNSType",
     "RemoteDNSDomain",
     "RemoteDNSIP",
@@ -28,8 +27,26 @@ REQUIRED_STRING_FIELDS = (
     "Geoipurl",
     "Geositeurl",
     "DomainStrategy",
-    "FakeDNS",
 )
+
+BOOL_FIELDS = ("GlobalProxy", "FakeDNS", "UseChunkFiles")
+
+PRIVATE_CIDRS = (
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16",
+    "224.0.0.0/4",
+    "255.255.255.255",
+)
+
+
+def as_bool(value: object, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes")
+    return default
 
 
 def load_template(path: Path) -> dict:
@@ -46,9 +63,13 @@ def inject_direct(
     direct = data.setdefault("DirectIp", [])
     direct_sites = data.setdefault("DirectSites", [])
 
-    for entry in ("geoip:private", "geoip:ru"):
+    for entry in ("geoip:ru",):
         if entry not in direct:
             direct.append(entry)
+
+    for cidr in PRIVATE_CIDRS:
+        if cidr not in direct:
+            direct.append(cidr)
 
     if server_ip:
         cidr = server_ip if "/" in server_ip else f"{server_ip}/32"
@@ -56,7 +77,7 @@ def inject_direct(
             direct.append(cidr)
 
     if panel_domain:
-        for site in (panel_domain, f"full:{panel_domain}"):
+        for site in (f"domain:{panel_domain}", f"full:{panel_domain}"):
             if site not in direct_sites:
                 direct_sites.append(site)
 
@@ -82,9 +103,21 @@ def normalize(data: dict) -> dict:
         {"cloudflare-dns.com": "1.1.1.1", "dns.google": "8.8.8.8"},
     )
     data.setdefault("RouteOrder", "block-proxy-direct")
+    data.setdefault("LastUpdated", "")
 
     if data.get("RouteOrder") == "block-direct-proxy":
         data["RouteOrder"] = "block-proxy-direct"
+
+    for key in BOOL_FIELDS:
+        default = key != "FakeDNS"
+        data[key] = as_bool(data.get(key), default=default)
+
+    direct = data.setdefault("DirectIp", [])
+    if "geoip:private" in direct:
+        direct.remove("geoip:private")
+        for cidr in PRIVATE_CIDRS:
+            if cidr not in direct:
+                direct.append(cidr)
 
     return data
 
@@ -94,6 +127,9 @@ def validate(data: dict) -> list[str]:
     for key in REQUIRED_STRING_FIELDS:
         if not data.get(key):
             errors.append(f"Missing or empty field: {key}")
+    for key in BOOL_FIELDS:
+        if not isinstance(data.get(key), bool):
+            errors.append(f"Field must be boolean: {key}")
     if not isinstance(data.get("DnsHosts"), dict):
         errors.append("DnsHosts must be an object")
     for legacy in ("RemoteDns", "DomesticDns", "RemoteRouting"):
@@ -103,7 +139,9 @@ def validate(data: dict) -> list[str]:
         "block-proxy-direct",
         "block-direct-proxy",
         "proxy-direct-block",
+        "proxy-block-direct",
         "direct-proxy-block",
+        "direct-block-proxy",
         None,
     ):
         errors.append(f"Unknown RouteOrder: {data.get('RouteOrder')}")
