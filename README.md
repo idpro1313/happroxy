@@ -282,7 +282,8 @@ bash scripts/generate-routing-deeplink.sh
 
 | Скрипт                         | Назначение                                      |
 | ------------------------------ | ----------------------------------------------- |
-| `disable-vless-inbound.sh`   | Отключить VLESS (починить Happ EOF после правок в панели) |
+| `fix-happ-eof.sh`            | Happ EOF: подписка только SS + инструкции |
+| `disable-vless-inbound.sh`   | Отключить VLESS в подписке |
 | `fix-vless-client.sh`        | VLESS не коннектится: sync UUID + опционально новый порт |
 | `migrate-vless-port.sh`      | Перенос VLESS Reality на другой TCP-порт                 |
 | `watch-vless-connect.sh`     | Смотреть, доходят ли клиенты на VLESS-порт               |
@@ -378,7 +379,7 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 | Crash loop / `bind: cannot assign requested address` | `sudo bash scripts/repair-panel.sh`                                                                               |
 | Нет роутеров в Traefik                               | `docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --force-recreate` + `verify-traefik.sh` |
 | `https://domain/` → 404                              | `bash scripts/show-urls.sh` или `--reset-web-path`                                                                |
-| Happ «Ошибка запуска ядра: EOF»                       | `sudo bash scripts/disable-vless-inbound.sh`; удалить и заново добавить подписку в Happ |
+| Happ «Ошибка запуска ядра: EOF»                       | `sudo bash scripts/fix-happ-eof.sh`; manual `ss://`; очистить routing в Happ |
 | Нет интернета в Happ (VLESS)                         | `sudo bash scripts/fix-vless-client.sh --migrate-port 8444`; `watch-vless-connect.sh`                           |
 | VLESS: пакетов нет на порту                          | `print-client-port-test.sh` на ПК; SS OK → миграция порта                                                         |
 | Нет vless:// в подписке                              | `sudo bash scripts/setup-vless-reality.sh`, обновить подписку                                                   |

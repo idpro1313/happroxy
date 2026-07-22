@@ -151,7 +151,22 @@ check_subscription() {
     warn "Public IP ${SERVER_IP:-?} not found in subscription links"
   fi
 
-  grep -qE 'vless://' <<<"${decoded}" && log "Found VLESS link" || warn "No vless:// link — run: sudo bash scripts/setup-vless-reality.sh"
+  grep -qE 'vless://' <<<"${decoded}" && log "Found VLESS link" || {
+    if [[ -n "${db}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+      local vless_on
+      vless_on="$(sqlite3 "${db}" "
+        SELECT COUNT(*) FROM inbounds
+        WHERE enable=1 AND (protocol='vless' OR remark='vless-reality');
+      " 2>/dev/null || echo 0)"
+      if [[ "${vless_on}" -gt 0 ]]; then
+        warn "No vless:// link — run: sudo bash scripts/setup-vless-reality.sh"
+      else
+        log "No vless:// (VLESS disabled — OK for SS-only / Happ EOF fix)"
+      fi
+    else
+      warn "No vless:// link — run: sudo bash scripts/setup-vless-reality.sh"
+    fi
+  }
   if [[ -n "${db}" ]] && command -v sqlite3 >/dev/null 2>&1; then
     local vless_links
     vless_links="$(sqlite3 "${db}" "
@@ -162,7 +177,13 @@ check_subscription() {
       WHERE i.port=${VLESS_PORT} AND c.sub_id='${sub_id}';
     " 2>/dev/null || echo 0)"
     if [[ "${vless_links}" -eq 0 ]] && ! grep -qE 'vless://' <<<"${decoded}"; then
-      warn "Client ${sub_id} not linked to vless-reality in client_inbounds — re-run setup-vless-reality.sh"
+      local vless_on
+      vless_on="$(sqlite3 "${db}" "
+        SELECT COUNT(*) FROM inbounds WHERE enable=1 AND protocol='vless';
+      " 2>/dev/null || echo 0)"
+      if [[ "${vless_on}" -gt 0 ]]; then
+        warn "Client ${sub_id} not linked to vless-reality in client_inbounds — re-run setup-vless-reality.sh"
+      fi
     elif [[ "${vless_links}" -gt 0 ]]; then
       log "client_inbounds: ${sub_id} → vless-reality (${vless_links})"
     fi
@@ -217,11 +238,25 @@ check_external_ports() {
   log "=== External reachability (from server to public IP) ==="
   [[ -n "${SERVER_IP}" ]] || { warn "SERVER_IP not set — skip external port probe"; return; }
 
-  local port
-  if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${VLESS_PORT}" 2>/dev/null; then
-    log "TCP ${SERVER_IP}:${VLESS_PORT} — OK"
+  local db vless_enabled vless_port_check
+  db="$(find_db_file 2>/dev/null || true)"
+  vless_enabled="0"
+  vless_port_check="${VLESS_PORT}"
+  if [[ -n "${db}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+    vless_enabled="$(sqlite3 "${db}" "
+      SELECT COUNT(*) FROM inbounds
+      WHERE enable=1 AND (protocol='vless' OR remark='vless-reality');
+    " 2>/dev/null || echo 0)"
+  fi
+
+  if [[ "${vless_enabled}" -gt 0 ]]; then
+    if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${VLESS_PORT}" 2>/dev/null; then
+      log "TCP ${SERVER_IP}:${VLESS_PORT} — OK (VLESS)"
+    else
+      fail "TCP ${SERVER_IP}:${VLESS_PORT} — NOT reachable (UFW / listen / routing)"
+    fi
   else
-    fail "TCP ${SERVER_IP}:${VLESS_PORT} — NOT reachable (UFW / listen / routing)"
+    log "VLESS inbound disabled — skip external probe for :${VLESS_PORT}"
   fi
   if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
     local db hy2_enabled
