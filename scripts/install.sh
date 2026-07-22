@@ -197,7 +197,7 @@ or set a new password in the panel UI.
 Next steps:
   1. Open the panel and change admin password
   2. Настройте входящие — см. README.md, раздел «Настройка 3X-UI»
-  3. В Подписка задайте Прослушивание IP: ${SERVER_IP}
+  3. В Подписка: Прослушивание IP — пусто; URI обратного прокси: https://${SERVER_IP}:${PANEL_PORT}${SUB_PATH:-/sub/family}/
   4. Import subscription URL into Happ app
 
 Health check:  bash scripts/healthcheck.sh
