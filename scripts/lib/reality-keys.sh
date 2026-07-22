@@ -89,7 +89,8 @@ _parse_reality_keypair() {
       val="${val//[[:space:]]/}"
       case "${key}" in
         privatekey) private_key="${val}" ;;
-        publickey|password(publickey)) public_key="${val}" ;;
+        publickey) public_key="${val}" ;;
+        'password(publickey)') public_key="${val}" ;;
       esac
     fi
   done <<<"${output}"
