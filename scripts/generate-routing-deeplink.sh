@@ -24,8 +24,8 @@ compact_json() {
 JSON_COMPACT="$(compact_json)"
 B64="$(printf '%s' "${JSON_COMPACT}" | base64 -w 0 2>/dev/null || printf '%s' "${JSON_COMPACT}" | base64)"
 
-echo "Paste into 3X-UI → Panel Settings → Subscription → Routing rules:"
+echo "Вставьте в 3X-UI → Настройки панели → Подписка → Правила маршрутизации:"
 echo ""
 echo "happ://routing/add/${B64}"
 echo ""
-echo "Routing profile Name in JSON should align with subscription profile-title."
+echo "Имя профиля (Name) в JSON должно совпадать с «Заголовок подписки»."

@@ -89,7 +89,10 @@ ensure_env() {
 
   # Fix legacy unquoted values with spaces.
   if grep -q '^SUB_PROFILE_TITLE=Family VPN$' "${env_file}" 2>/dev/null; then
-    sed -i 's/^SUB_PROFILE_TITLE=Family VPN/SUB_PROFILE_TITLE="Family VPN"/' "${env_file}"
+    sed -i 's/^SUB_PROFILE_TITLE=Family VPN/SUB_PROFILE_TITLE="Семейный VPN"/' "${env_file}"
+  fi
+  if grep -q '^SUB_PROFILE_TITLE="Family VPN"$' "${env_file}" 2>/dev/null; then
+    sed -i 's/^SUB_PROFILE_TITLE="Family VPN"/SUB_PROFILE_TITLE="Семейный VPN"/' "${env_file}"
   fi
 
   # shellcheck disable=SC1091
@@ -186,15 +189,15 @@ Panel URL:  https://${SERVER_IP}:${PANEL_PORT}/
             (accept self-signed certificate warning in browser)
 
 Default 3X-UI login on first start: admin / admin
-Change credentials immediately in Panel Settings.
+Сразу смените пароль в Настройки панели → Учетная запись.
 
 If install.sh generated XUI_ADMIN_* values, use those after first login change
 or set a new password in the panel UI.
 
 Next steps:
   1. Open the panel and change admin password
-  2. Configure inbounds — see README.md section "Настройка 3X-UI"
-  3. Set Subscription Listen IP to: ${SERVER_IP}
+  2. Настройте входящие — см. README.md, раздел «Настройка 3X-UI»
+  3. В Подписка задайте Прослушивание IP: ${SERVER_IP}
   4. Import subscription URL into Happ app
 
 Health check:  bash scripts/healthcheck.sh
