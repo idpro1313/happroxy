@@ -8,6 +8,7 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/load-env.sh"
 source "${SCRIPT_DIR}/lib/db.sh"
+source "${SCRIPT_DIR}/lib/public-url.sh"
 load_env_file "${PROJECT_DIR}/.env"
 
 SERVER_IP="${SERVER_IP:-}"
@@ -84,30 +85,17 @@ check_ports() {
   fi
 }
 
-fetch_subscription_raw() {
-  local sub_id="$1"
-  local sub_path url code
-  sub_path="$(normalize_sub_path "${SUB_PATH}")"
-
-  for url in \
-    "http://127.0.0.1:${SUB_PORT}${sub_path}${sub_id}" \
-    "http://127.0.0.1:${PANEL_PORT}${sub_path}${sub_id}"; do
-    code="$(curl -s -o /tmp/happroxy_sub.txt -w '%{http_code}' --max-time 10 "${url}" 2>/dev/null || echo "000")"
-    if [[ "${code}" == "200" && -s /tmp/happroxy_sub.txt ]]; then
-      cat /tmp/happroxy_sub.txt
-      return 0
-    fi
-  done
-  return 1
-}
-
 check_subscription() {
   log "=== Subscription content ==="
-  local db sub_id raw decoded
+  local db sub_id raw decoded body_file="/tmp/happroxy_sub.txt"
   sub_id=""
 
   if db="$(find_db_file 2>/dev/null)"; then
     sub_id="$(get_first_sub_id "${db}" 2>/dev/null || true)"
+    if command -v sqlite3 >/dev/null 2>&1; then
+      log "  subEnable=$(get_setting_value "${db}" "subEnable") subPath=$(get_setting_value "${db}" "subPath")"
+      log "  subURI=$(get_setting_value "${db}" "subURI")"
+    fi
   fi
 
   if [[ -z "${sub_id}" ]]; then
@@ -116,14 +104,22 @@ check_subscription() {
   fi
 
   log "Using client subId: ${sub_id}"
-  if ! raw="$(fetch_subscription_raw "${sub_id}")"; then
-    fail "Could not fetch subscription for subId ${sub_id}"
-    log "Check: subPort=${SUB_PORT}, subPath=${SUB_PATH}, at least one inbound enabled"
+  if ! raw="$(fetch_subscription_raw "${sub_id}" "${db:-}")"; then
+    fail "Could not fetch subscription for subId ${sub_id} (last: ${SUB_FETCH_URL:-?} HTTP ${SUB_FETCH_CODE:-?})"
+    log "Try: bash scripts/show-urls.sh"
+    log "Fix:  sudo bash scripts/repair-panel.sh"
     return
   fi
 
-  if ! decoded="$(printf '%s' "${raw}" | decode_subscription_body 2>/dev/null)"; then
-    fail "Subscription response is empty"
+  printf '%s' "${raw}" > "${body_file}"
+  if ! decoded="$(decode_subscription_file "${body_file}" 2>/dev/null)"; then
+    fail "Subscription response not decodable (${#raw} bytes from ${SUB_FETCH_URL:-?})"
+    log "Preview: $(head -c 120 "${body_file}" | tr '\n' ' ')"
+    return
+  fi
+
+  if [[ -z "${decoded}" ]]; then
+    fail "Subscription decoded to empty body"
     return
   fi
 
@@ -189,13 +185,28 @@ check_external_ports() {
     fail "TCP ${SERVER_IP}:${VLESS_PORT} — NOT reachable (UFW / listen / routing)"
   fi
   if [[ "${ENABLE_LEGACY_INBOUNDS}" == "true" ]]; then
-    for port in "${SS_PORT}" "${VMESS_PORT}" "${HY2_PORT}"; do
+    local db hy2_enabled
+    db="$(find_db_file 2>/dev/null || true)"
+    hy2_enabled="1"
+    if [[ -n "${db}" ]] && command -v sqlite3 >/dev/null 2>&1; then
+      hy2_enabled="$(sqlite3 "${db}" "SELECT enable FROM inbounds WHERE port=${HY2_PORT} LIMIT 1;" 2>/dev/null || echo 1)"
+    fi
+    for port in "${SS_PORT}" "${VMESS_PORT}"; do
       if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${port}" 2>/dev/null; then
         log "TCP ${SERVER_IP}:${port} — OK"
       else
         fail "TCP ${SERVER_IP}:${port} — NOT reachable (UFW / listen / routing)"
       fi
     done
+    if [[ "${hy2_enabled}" == "1" ]]; then
+      if timeout 3 bash -c "echo >/dev/tcp/${SERVER_IP}/${HY2_PORT}" 2>/dev/null; then
+        log "TCP ${SERVER_IP}:${HY2_PORT} — OK"
+      else
+        warn "TCP ${SERVER_IP}:${HY2_PORT} — NOT reachable (HY2 inbound disabled or UFW)"
+      fi
+    else
+      log "HY2 port ${HY2_PORT} — skipped (inbound disabled in DB)"
+    fi
   fi
 }
 

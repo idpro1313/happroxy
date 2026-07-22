@@ -99,3 +99,85 @@ for decoder in (base64.b64decode, base64.urlsafe_b64decode):
 print(raw)
 PY
 }
+
+# Fetch subscription body; prints body to stdout, returns 0 on success.
+# Sets SUB_FETCH_URL and SUB_FETCH_CODE (exported) for diagnostics.
+fetch_subscription_raw() {
+  local sub_id="$1"
+  local db="${2:-}"
+  local sub_path sub_paths=() url code body_file="/tmp/happroxy_sub.txt"
+  local -a urls=()
+
+  sub_path="${SUB_PATH:-/sub/family}"
+  if [[ -n "${db}" && -f "${db}" ]]; then
+    local db_path db_enable
+    db_path="$(get_setting_value "${db}" "subPath")"
+    [[ -n "${db_path}" ]] && sub_path="${db_path}"
+    db_enable="$(get_setting_value "${db}" "subEnable")"
+    if [[ "${db_enable}" == "false" ]]; then
+      SUB_FETCH_CODE="disabled"
+      SUB_FETCH_URL="subEnable=false in panel DB"
+      return 1
+    fi
+  fi
+
+  normalize_sub_path_var() {
+    local p="$1"
+    [[ "${p}" == /* ]] || p="/${p}"
+    [[ "${p}" == */ ]] || p="${p}/"
+    printf '%s' "${p}"
+  }
+
+  sub_paths=(
+    "$(normalize_sub_path_var "${sub_path}")"
+    "/sub/"
+  )
+
+  # shellcheck disable=SC1091
+  source "${_happroxy_db_lib_dir}/public-url.sh" 2>/dev/null || true
+  if [[ -n "${PANEL_DOMAIN:-}" ]] && declare -F build_sub_public_base >/dev/null 2>&1; then
+      local pub_base
+      pub_base="$(build_sub_public_base)"
+      urls+=("${pub_base}${sub_id}")
+  fi
+
+  local p
+  for p in "${sub_paths[@]}"; do
+    urls+=("http://127.0.0.1:${SUB_PORT:-2096}${p}${sub_id}")
+    urls+=("http://127.0.0.1:${PANEL_PORT:-38471}${p}${sub_id}")
+    if [[ -n "${SERVER_IP:-}" ]]; then
+      urls+=("http://${SERVER_IP}:${SUB_PORT:-2096}${p}${sub_id}")
+    fi
+  done
+
+  for url in "${urls[@]}"; do
+    [[ -n "${url}" ]] || continue
+    if [[ "${url}" == https://* ]]; then
+      code="$(curl -fsSk -o "${body_file}" -w '%{http_code}' --max-time 15 "${url}" 2>/dev/null || echo "000")"
+    else
+      code="$(curl -fsS -o "${body_file}" -w '%{http_code}' --max-time 15 "${url}" 2>/dev/null || echo "000")"
+    fi
+    SUB_FETCH_URL="${url}"
+    SUB_FETCH_CODE="${code}"
+    if [[ "${code}" == "200" && -s "${body_file}" ]]; then
+      if grep -q '://' "${body_file}" 2>/dev/null; then
+        cat "${body_file}"
+        return 0
+      fi
+      # Accept base64 subscription without plain :// on first line
+      if [[ "$(wc -c < "${body_file}")" -gt 20 ]]; then
+        cat "${body_file}"
+        return 0
+      fi
+    fi
+  done
+
+  SUB_FETCH_CODE="${SUB_FETCH_CODE:-000}"
+  return 1
+}
+
+decode_subscription_file() {
+  local file="$1"
+  [[ -s "${file}" ]] || return 1
+  decode_subscription_body < "${file}"
+}

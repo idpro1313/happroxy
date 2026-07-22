@@ -19,8 +19,12 @@ def load_template(path: Path, values: dict) -> dict:
 
 def collect_clients(conn: sqlite3.Connection) -> list[dict]:
     seen: dict[str, dict] = {}
-    rows = conn.execute("SELECT settings FROM inbounds WHERE enable=1").fetchall()
-    for (settings_raw,) in rows:
+    rows = conn.execute(
+        "SELECT settings, protocol, remark FROM inbounds WHERE enable=1"
+    ).fetchall()
+    for settings_raw, protocol, remark in rows:
+        if protocol == "vless" or remark == "vless-reality":
+            continue
         if not settings_raw:
             continue
         try:
