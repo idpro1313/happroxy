@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build public panel/subscription URLs from .env (IP or HTTPS domain).
-set -euo pipefail
+# Intentionally no "set -e" here — this file is sourced by other scripts.
 
 normalize_sub_path() {
   local path="${1:-/sub/family}"
@@ -54,5 +54,3 @@ build_sub_public_base() {
 
   printf 'http://%s:%s%s' "${SERVER_IP:?SERVER_IP required}" "${SUB_PORT:-2096}" "${sub_path}"
 }
-
-export -f normalize_sub_path public_scheme build_panel_public_url build_sub_public_base 2>/dev/null || true

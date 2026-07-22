@@ -9,6 +9,14 @@ log() { printf '[setup-https] %s\n' "$*"; }
 warn() { printf '[setup-https] WARN: %s\n' "$*" >&2; }
 die() { printf '[setup-https] ERROR: %s\n' "$*" >&2; exit 1; }
 
+on_err() {
+  local ec=$?
+  printf '[setup-https] FAILED at line %s (exit %s). Re-run: bash -x scripts/setup-https.sh ...\n' \
+    "${BASH_LINENO[0]:-?}" "${ec}" >&2
+  exit "${ec}"
+}
+trap on_err ERR
+
 require_root() {
   [[ "${EUID:-$(id -u)}" -ne 0 ]] && die "Run as root: sudo bash scripts/setup-https.sh"
 }
@@ -69,7 +77,13 @@ update_env_domain() {
 
 apply_traefik_docker_labels() {
   log "Applying Traefik Docker labels (network web, certresolver le)..."
-  docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+  log "PANEL_DOMAIN=${PANEL_DOMAIN:-<empty>} (from .env)"
+  if [[ -z "${PANEL_DOMAIN:-}" ]]; then
+    die "PANEL_DOMAIN is empty — update .env first"
+  fi
+  if ! docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d; then
+    die "docker compose failed — check: docker compose -f docker-compose.yml -f docker-compose.traefik.yml config"
+  fi
   log "Container joined network 'web'. Traefik will pick up labels automatically."
 }
 
@@ -110,8 +124,9 @@ run_certbot() {
 }
 
 main() {
+  log "Starting HTTPS setup (happroxy)..."
   require_root
-  cd "${PROJECT_DIR}"
+  cd "${PROJECT_DIR}" || die "Cannot cd to ${PROJECT_DIR}"
 
   local domain="" email="" skip_certbot=false skip_traefik=false traefik_dir=""
   local use_docker_labels=true use_file_provider=false
@@ -147,6 +162,12 @@ main() {
 
   update_env_domain "${domain}"
 
+  # Reload .env so docker compose sees PANEL_DOMAIN in labels
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/load-env.sh"
+  load_env_file "${PROJECT_DIR}/.env"
+  export PANEL_DOMAIN="${domain}"
+
   local upstream="${TRAEFIK_UPSTREAM_HOST:-172.18.0.1}"
   local panel_port="${PANEL_PORT:-38471}"
   local sub_port="${SUB_PORT:-2096}"
@@ -176,33 +197,40 @@ main() {
   fi
 
   log "Updating 3X-UI subscription settings (HTTPS subURI)..."
-  bash "${SCRIPT_DIR}/repair-panel.sh"
+  if ! bash "${SCRIPT_DIR}/repair-panel.sh"; then
+    die "repair-panel.sh failed"
+  fi
 
   if [[ "${use_docker_labels}" == "true" && "${skip_traefik}" != "true" ]]; then
     log "Waiting for Traefik LE cert (open https://${domain}/ in browser if this fails)..."
     sleep 5
-    bash "${SCRIPT_DIR}/sync-traefik-certs.sh" || warn "Run later: sudo bash scripts/sync-traefik-certs.sh (after first HTTPS request)"
+    if ! bash "${SCRIPT_DIR}/sync-traefik-certs.sh"; then
+      warn "Run later: sudo bash scripts/sync-traefik-certs.sh (after first HTTPS request)"
+    fi
   fi
 
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/public-url.sh"
   load_env_file "${PROJECT_DIR}/.env"
 
+  panel_url="$(build_panel_public_url)"
+  sub_base="$(build_sub_public_base)"
+
   cat <<EOF
 
 ================================================================================
 HTTPS setup complete (domain: ${domain})
 
-Panel:        $(build_panel_public_url)
-Subscription: $(build_sub_public_base)<subId>
+Panel:        ${panel_url}
+Subscription: ${sub_base}<subId>
 
 Manual steps:
   1. DNS: A-record ${domain} → ${SERVER_IP}
   2. Open https://${domain}/ — Traefik requests LE certificate (tlsChallenge)
-  3. Панель → Подписка → URI обратного прокси = $(build_sub_public_base)
+  3. Панель → Подписка → URI обратного прокси = ${sub_base}
   4. Входящие → Стратегия адреса → ${domain}
   5. HY2 certs: sudo bash scripts/sync-traefik-certs.sh && docker restart happroxy_3xui
-  6. Happ: новая подписка $(build_sub_public_base)<subId>, затем generate-routing-deeplink.sh
+  6. Happ: новая подписка ${sub_base}<subId>, затем generate-routing-deeplink.sh
 
 Traefik: Docker labels via docker-compose.traefik.yml, network web, certresolver le.
 HTTP→HTTPS redirect already configured in your Traefik entrypoint web.

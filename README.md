@@ -52,6 +52,9 @@ git pull
 sudo bash scripts/setup-https.sh --domain vpn.idpro13.ru --docker-labels
 ```
 
+> Запускайте через **`bash scripts/setup-https.sh`**, не `./scripts/...` — так видны ошибки.  
+> Если снова «тишина»: `bash -x scripts/setup-https.sh --domain vpn.idpro13.ru --docker-labels`
+
 Скрипт:
 - пропишет `PANEL_DOMAIN` в `.env`;
 - подключит контейнер к сети `web` с labels ([`docker-compose.traefik.yml`](docker-compose.traefik.yml));
