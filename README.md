@@ -282,6 +282,10 @@ bash scripts/generate-routing-deeplink.sh
 
 | Скрипт                         | Назначение                                      |
 | ------------------------------ | ----------------------------------------------- |
+| `fix-vless-client.sh`        | VLESS не коннектится: sync UUID + опционально новый порт |
+| `migrate-vless-port.sh`      | Перенос VLESS Reality на другой TCP-порт                 |
+| `watch-vless-connect.sh`     | Смотреть, доходят ли клиенты на VLESS-порт               |
+| `print-client-port-test.sh`  | Сгенерировать тест портов для Windows (PowerShell)       |
 | `setup-vless-reality.sh`       | VLESS Reality inbound (Phase 2)                 |
 | `generate-crypto-subscription.sh` | `happ://crypt5/...` encrypted sub            |
 | `migrate-phase2.sh`            | Отключить SS/VMess/HY2 после проверки VLESS     |
@@ -373,7 +377,8 @@ docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 | Crash loop / `bind: cannot assign requested address` | `sudo bash scripts/repair-panel.sh`                                                                               |
 | Нет роутеров в Traefik                               | `docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d --force-recreate` + `verify-traefik.sh` |
 | `https://domain/` → 404                              | `bash scripts/show-urls.sh` или `--reset-web-path`                                                                |
-| Нет интернета в Happ                                 | `diagnose-client.sh`; подключить **VLESS** или **Shadowsocks**                                                    |
+| Нет интернета в Happ (VLESS)                         | `sudo bash scripts/fix-vless-client.sh --migrate-port 8444`; `watch-vless-connect.sh`                           |
+| VLESS: пакетов нет на порту                          | `print-client-port-test.sh` на ПК; SS OK → миграция порта                                                         |
 | Нет vless:// в подписке                              | `sudo bash scripts/setup-vless-reality.sh`, обновить подписку                                                   |
 | HY2 `n/a`                                            | SS/VMess; для HY2 — `sync-traefik-certs.sh`, insecure в Happ                                                      |
 | Панель недоступна при Happ на ПК                     | `generate-routing-deeplink.sh` → обновить подписку                                                                |

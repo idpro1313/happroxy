@@ -103,6 +103,20 @@ main() {
 
   check_file "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
+  check_file "${PROJECT_DIR}/scripts/lib/check-port.sh"
+  check_bash_syntax "${PROJECT_DIR}/scripts/lib/check-port.sh"
+  check_file "${PROJECT_DIR}/scripts/lib/fix-client-json.py"
+  if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/fix-client-json.py" 2>/dev/null; then
+    log "OK python: scripts/lib/fix-client-json.py"
+  else
+    fail "Python syntax error: scripts/lib/fix-client-json.py"
+  fi
+  check_file "${PROJECT_DIR}/scripts/lib/verify-vless-reality.py"
+  if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/verify-vless-reality.py" 2>/dev/null; then
+    log "OK python: scripts/lib/verify-vless-reality.py"
+  else
+    fail "Python syntax error: scripts/lib/verify-vless-reality.py"
+  fi
   check_file "${PROJECT_DIR}/scripts/lib/vless-inbound.py"
   check_file "${PROJECT_DIR}/scripts/lib/reality-keys.py"
   if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/vless-inbound.py" 2>/dev/null; then
@@ -116,7 +130,7 @@ main() {
     fail "Python syntax error: scripts/lib/reality-keys.py"
   fi
 
-  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2; do
+  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2 fix-vless-client migrate-vless-port watch-vless-connect print-client-port-test; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done
