@@ -19,7 +19,17 @@ sudo bash scripts/install.sh
 - настраивает UFW;
 - запускает `docker compose up -d`.
 
-Панель: `https://<SERVER_IP>:38471/`
+Панель: `http://<SERVER_IP>:38471/` (по умолчанию **HTTP**, без SSL)
+
+### Панель недоступна / crash loop
+
+```bash
+cd /opt/happroxy
+git pull
+sudo bash scripts/repair-panel.sh
+```
+
+Скрипт автоматически: останавливает контейнер, чинит `subListen`/подписку в SQLite, удаляет сломанный Trojan:8443, перезапускает сервис.
 
 ## Постоянные данные (вне контейнера)
 
@@ -51,6 +61,7 @@ sudo bash scripts/install.sh
 | Сервис | Переменная | Порт |
 |---|---|---|
 | Панель 3X-UI | `PANEL_PORT` | 38471 |
+| Подписка 3X-UI | `SUB_PORT` | 2096 |
 | Hysteria2 | `HY2_PORT` | 4443 (UDP+TCP) |
 | Shadowsocks 2022 | `SS_PORT` | 8388 |
 | VMess TCP | `VMESS_PORT` | 16888 |
@@ -99,7 +110,7 @@ happroxy/                    # код и docker-compose (можно обновл
 | **Прослушивание IP** | **оставить пустым** (иначе bind error на публичный IP) |
 | **Порт подписки** | `2096` (внутренний, по умолчанию — не менять) |
 | **URI-путь** | `/sub/family/` (со слэшем в конце) |
-| **URI обратного прокси** | `https://<SERVER_IP>:38471/sub/family/` — публичный IP в ссылках подписки |
+| **URI обратного прокси** | `http://<SERVER_IP>:2096/sub/family/` — публичный адрес подписки |
 | **Заголовок подписки** | `Семейный VPN` (≤25 символов, для Happ) |
 | **Интервалы обновления подписки** | `6` (часов) |
 
@@ -183,7 +194,13 @@ bash scripts/generate-routing-deeplink.sh
 Скопируйте **URL подписки** клиента (**Клиенты → Sub-ссылки** или **Подробнее** у клиента):
 
 ```
-https://<SERVER_IP>:38471/sub/family/<subId>
+http://<SERVER_IP>:38471/sub/family/<subId>
+```
+
+или через порт подписки:
+
+```
+http://<SERVER_IP>:2096/sub/family/<subId>
 ```
 
 ### 5. Проверка подписки
@@ -279,7 +296,7 @@ bash scripts/update.sh
 | Проблема | Решение |
 |---|---|
 | `both file and bytes are empty` / `in-8443-tcp` | Trojan (8443) без TLS-сертификата — **удалите** inbound или укажите `/root/cert/selfsigned.crt` + `.key` |
-| `bind: cannot assign requested address` + публичный IP | Очистите **Прослушивание IP** в **Подписка**; задайте **URI обратного прокси** |
+| `bind: cannot assign requested address` + публичный IP | `sudo bash scripts/repair-panel.sh` |
 | `Error starting sub server` | То же — **Прослушивание IP** должно быть пустым; перезапустите панель |
 | Xray не стартует после добавления inbound | Проверьте лог: чаще всего TLS без сертификата на Trojan/HY2 |
 | Подписка с `127.0.0.1` | Заполните **URI обратного прокси**; у inbound → **Стратегия адреса для ссылок** → пользовательский IP |

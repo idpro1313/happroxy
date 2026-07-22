@@ -17,6 +17,7 @@ services:
     tty: true
     ports:
       - "${PANEL_PORT:-38471}:${PANEL_PORT:-38471}"
+      - "${SUB_PORT:-2096}:${SUB_PORT:-2096}/tcp"
       - "${HY2_PORT:-4443}:${HY2_PORT:-4443}/udp"
       - "${HY2_PORT:-4443}:${HY2_PORT:-4443}/tcp"
       - "${SS_PORT:-8388}:${SS_PORT:-8388}/tcp"

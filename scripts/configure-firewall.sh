@@ -12,11 +12,12 @@ if [[ -f "${PROJECT_DIR}/.env" ]]; then
 fi
 
 PANEL_PORT="${PANEL_PORT:-38471}"
+SUB_PORT="${SUB_PORT:-2096}"
 HY2_PORT="${HY2_PORT:-4443}"
 SS_PORT="${SS_PORT:-8388}"
 VMESS_PORT="${VMESS_PORT:-16888}"
 TROJAN_PORT="${TROJAN_PORT:-8443}"
-ENABLE_TROJAN="${ENABLE_TROJAN:-true}"
+ENABLE_TROJAN="${ENABLE_TROJAN:-false}"
 
 # Ports that must stay untouched on this VM (Traefik, Portainer, wg-dashboard).
 RESERVED_PORTS=(80 443 8080 8000 9443 10086 17998)
@@ -74,6 +75,7 @@ configure_ufw() {
   ufw allow 22/tcp comment 'SSH' >/dev/null || ufw allow 22/tcp
 
   ufw allow "${PANEL_PORT}/tcp" comment '3X-UI panel' >/dev/null
+  ufw allow "${SUB_PORT}/tcp" comment '3X-UI subscription' >/dev/null
   ufw allow "${HY2_PORT}/udp" comment 'Hysteria2 UDP' >/dev/null
   ufw allow "${HY2_PORT}/tcp" comment 'Hysteria2 TCP' >/dev/null
   ufw allow "${SS_PORT}/tcp" comment 'Shadowsocks' >/dev/null
@@ -93,6 +95,7 @@ main() {
 
   log "Checking ports..."
   check_port_free "${PANEL_PORT}" "3X-UI panel"
+  check_port_free "${SUB_PORT}" "3X-UI subscription"
   check_hy2_port
   check_port_free "${SS_PORT}" "Shadowsocks"
   check_port_free "${VMESS_PORT}" "VMess"

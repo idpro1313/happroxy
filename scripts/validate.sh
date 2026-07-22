@@ -90,7 +90,7 @@ main() {
   check_file "${PROJECT_DIR}/scripts/lib/data-dir.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/data-dir.sh"
 
-  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate; do
+  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done
