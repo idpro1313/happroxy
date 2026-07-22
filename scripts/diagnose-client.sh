@@ -157,6 +157,13 @@ check_subscription() {
     grep -q 'ss://' <<<"${decoded}" && log "Found Shadowsocks link" || warn "No ss:// link in subscription"
     grep -q 'vmess://' <<<"${decoded}" && log "Found VMess link" || warn "No vmess:// link in subscription"
   fi
+
+  if grep -qE 'vless://' <<<"${decoded}" && [[ -n "${db}" ]] && command -v python3 >/dev/null 2>&1; then
+    log "=== VLESS Reality consistency ==="
+    if ! python3 "${SCRIPT_DIR}/lib/verify-vless-reality.py" "${db}" "${PROJECT_DIR}/.env" "${decoded}" | sed 's/^/[diagnose] /'; then
+      warn "VLESS Reality mismatch — run: sudo bash scripts/setup-vless-reality.sh && docker restart happroxy_3xui"
+    fi
+  fi
 }
 
 check_server_outbound() {
@@ -242,11 +249,11 @@ print_client_hints() {
   log "=== Client (Happ) checklist ==="
   cat <<EOF
 1. Disconnect Happ — интернет на ПК должен вернуться.
-2. В Happ сначала VLESS (${VLESS_PORT}, Reality), затем Shadowsocks (${SS_PORT}) если legacy включён.
-3. Временно очистите «Правила маршрутизации» в панели (GlobalProxy ломает всё, если прокси не работает).
-4. Обновите подписку в Happ после любых правок на сервере.
-5. На Windows: режим TUN — попробуйте Proxy mode в настройках Happ.
-6. Self-signed HY2: в Happ может потребоваться разрешить insecure / skip verify для сертификата.
+2. Shadowsocks (${SS_PORT}) уже работает — используйте его, пока чините VLESS.
+3. VLESS Reality: n/a в пинге — нормально; важно, идёт ли трафик (счётчики в панели).
+4. Если VLESS «подключён», но интернета нет — обновите Happ, переимпортируйте подписку, попробуйте Proxy вместо TUN.
+5. На сервере при подключении VLESS: docker logs happroxy_3xui --tail 30
+6. Пересинхронизация Reality: sudo bash scripts/setup-vless-reality.sh && docker restart happroxy_3xui
 EOF
 }
 

@@ -15,10 +15,9 @@
     "realitySettings": {
       "show": false,
       "xver": 0,
-      "dest": "{{REALITY_DEST}}",
+      "target": "{{REALITY_DEST}}",
       "serverNames": ["{{REALITY_SNI}}"],
       "privateKey": "{{REALITY_PRIVATE_KEY}}",
-      "publicKey": "{{REALITY_PUBLIC_KEY}}",
       "minClientVer": "",
       "maxClientVer": "",
       "maxTimediff": 0,
