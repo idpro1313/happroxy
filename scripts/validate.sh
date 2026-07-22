@@ -48,6 +48,13 @@ check_bash_syntax() {
   fi
 }
 
+check_no_crlf() {
+  local f="$1"
+  if grep -q $'\r' "${f}" 2>/dev/null; then
+    fail "CRLF line endings (breaks Linux bash): ${f#${PROJECT_DIR}/}"
+  fi
+}
+
 check_env_example() {
   local required=(DATA_DIR SERVER_IP PANEL_PORT VLESS_PORT HY2_PORT SS_PORT VMESS_PORT TROJAN_PORT)
   local key
@@ -87,23 +94,31 @@ main() {
   check_file "${PROJECT_DIR}/config/happ-routing.json"
   check_file "${PROJECT_DIR}/config/inbound-vless-reality.json.template"
   check_file "${PROJECT_DIR}/scripts/lib/load-env.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/load-env.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/load-env.sh"
   check_file "${PROJECT_DIR}/scripts/lib/data-dir.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/data-dir.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/data-dir.sh"
   check_file "${PROJECT_DIR}/scripts/lib/compose.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/compose.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/compose.sh"
   check_file "${PROJECT_DIR}/scripts/lib/prompt.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/prompt.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/prompt.sh"
   check_file "${PROJECT_DIR}/scripts/lib/public-url.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/public-url.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/public-url.sh"
   check_file "${PROJECT_DIR}/scripts/lib/db.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/db.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/db.sh"
   check_file "${PROJECT_DIR}/config/traefik/happroxy.yml"
   check_file "${PROJECT_DIR}/docker-compose.traefik.yml"
 
   check_file "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/reality-keys.sh"
   check_file "${PROJECT_DIR}/scripts/lib/check-port.sh"
+  check_no_crlf "${PROJECT_DIR}/scripts/lib/check-port.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/check-port.sh"
   if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/subscription-ss-only.py" 2>/dev/null; then
     log "OK python: scripts/lib/subscription-ss-only.py"
@@ -143,6 +158,7 @@ main() {
 
   for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink sync-geo-files validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls list-clients verify-traefik setup-vless-reality generate-crypto-subscription migrate-phase2 fix-vless-client migrate-vless-port watch-vless-connect print-client-port-test disable-vless-inbound fix-happ-eof restore-phase1; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
+    check_no_crlf "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done
 
