@@ -94,7 +94,7 @@ main() {
   check_file "${PROJECT_DIR}/config/traefik/happroxy.yml"
   check_file "${PROJECT_DIR}/docker-compose.traefik.yml"
 
-  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs; do
+  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs sync-traefik-certs show-urls; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done

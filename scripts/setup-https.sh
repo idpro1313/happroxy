@@ -248,11 +248,17 @@ main() {
   fi
 
   # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/db.sh"
   source "${SCRIPT_DIR}/lib/public-url.sh"
   load_env_file "${PROJECT_DIR}/.env"
 
+  if db="$(find_db_file 2>/dev/null || true)" && [[ -n "${db}" ]]; then
+    export PANEL_WEB_PATH="$(get_panel_web_path "${db}")"
+  fi
+
   panel_url="$(build_panel_public_url)"
   sub_base="$(build_sub_public_base)"
+  web_path="${PANEL_WEB_PATH:-/}"
 
   cat <<EOF
 
@@ -261,10 +267,14 @@ HTTPS setup complete (domain: ${domain})
 
 Panel:        ${panel_url}
 Subscription: ${sub_base}<subId>
+webBasePath:  ${web_path}
+
+Note: 404 on https://${domain}/ is OK if webBasePath is not "/".
+      Open Panel URL above, or: bash scripts/repair-panel.sh --reset-web-path
 
 Manual steps:
   1. DNS: A-record ${domain} → ${SERVER_IP}
-  2. Open https://${domain}/ — Traefik requests LE certificate (tlsChallenge)
+  2. Open Panel URL above (Traefik LE cert on first HTTPS visit)
   3. Панель → Подписка → URI обратного прокси = ${sub_base}
   4. Входящие → Стратегия адреса → ${domain}
   5. HY2 certs: sudo bash scripts/sync-traefik-certs.sh && docker restart happroxy_3xui

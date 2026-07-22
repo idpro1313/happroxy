@@ -400,7 +400,7 @@ bash scripts/update.sh
 | OOM / контейнер падает | Убедитесь в swap; оставьте HY2 + SS |
 | Маршрутизация не применяется | Имя профиля в routing JSON = **Заголовок подписки**; обновите подписку |
 | Панель недоступна при включённом Happ на ПК | IP сервера шёл в туннель — `bash scripts/generate-routing-deeplink.sh` → обновить подписку |
-| healthcheck: Panel HTTP 404 | Часто норма (кастомный путь панели); смотрите `sudo bash scripts/diagnose-client.sh` |
+| healthcheck / `https://domain/` → **404** | Норма: панель на **webBasePath**, не на `/`. `bash scripts/show-urls.sh` или `repair-panel.sh --reset-web-path` |
 | **Нет интернета на клиенте при подключённом Happ** | См. раздел ниже; на сервере: `sudo bash scripts/diagnose-client.sh` |
 | Shadowsocks/VMess deprecated | Предупреждение Xray 26.x — не критично; в фазе 2 перейти на VLESS |
 

@@ -198,6 +198,19 @@ wait_for_http() {
 }
 
 main() {
+  local reset_web_path=false
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --reset-web-path) reset_web_path=true; shift ;;
+      -h|--help)
+        echo "Usage: sudo bash scripts/repair-panel.sh [--reset-web-path]"
+        echo "  --reset-web-path  Set webBasePath to / (panel at domain root)"
+        exit 0
+        ;;
+      *) break ;;
+    esac
+  done
+
   require_root
   cd "${PROJECT_DIR}"
 
@@ -223,6 +236,10 @@ main() {
   docker compose stop 2>/dev/null || docker stop happroxy_3xui 2>/dev/null || true
 
   backup_db "${db}"
+  if [[ "${reset_web_path}" == "true" ]]; then
+    set_setting "${db}" "webBasePath" "/"
+    log "Reset webBasePath to / (panel at site root)"
+  fi
   fix_subscription_settings "${db}"
   remove_broken_inbounds "${db}"
   ensure_certs
@@ -232,16 +249,17 @@ main() {
   docker compose up -d
 
   # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/db.sh"
   source "${SCRIPT_DIR}/lib/public-url.sh"
   load_env_file "${PROJECT_DIR}/.env"
 
-  local panel_url
+  export PANEL_WEB_PATH="$(get_panel_web_path "${db}")"
+  local panel_url sub_base web_path="${PANEL_WEB_PATH}"
   panel_url="$(build_panel_public_url)"
-  local sub_base
   sub_base="$(build_sub_public_base)"
 
   log "Waiting for panel at ${panel_url} ..."
-  if wait_for_http "http://127.0.0.1:${PANEL_PORT}/" || wait_for_http "${panel_url}"; then
+  if wait_for_http "http://127.0.0.1:${PANEL_PORT}${web_path}" || wait_for_http "${panel_url}"; then
     log "Panel is up."
   else
     warn "Panel not responding yet — check: docker logs happroxy_3xui --tail 30"
@@ -252,8 +270,12 @@ main() {
 ================================================================================
 Repair complete.
 
-Panel (HTTP):     ${panel_url}
+Panel:            ${panel_url}
 Subscription base: ${sub_base}<subId>
+webBasePath:       ${web_path}
+
+If https://domain/ shows 404, open Panel URL above (custom webBasePath).
+To use domain root: sudo bash scripts/repair-panel.sh --reset-web-path
 
 If the panel still loops, run:
   docker logs happroxy_3xui --tail 30
