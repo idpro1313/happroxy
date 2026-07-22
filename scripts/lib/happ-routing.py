@@ -54,6 +54,24 @@ def load_template(path: Path) -> dict:
         return json.load(f)
 
 
+def sanitize_direct_sites(sites: list[str]) -> list[str]:
+    """Happ routing builder rejects regexp:/full:/domain: in DirectSites."""
+    result: list[str] = []
+    seen: set[str] = set()
+    for site in sites:
+        if site.startswith("regexp:"):
+            continue
+        if site.startswith("full:"):
+            site = site.removeprefix("full:")
+        elif site.startswith("domain:"):
+            site = site.removeprefix("domain:")
+        if not site or site in seen:
+            continue
+        seen.add(site)
+        result.append(site)
+    return result
+
+
 def inject_direct(
     data: dict, server_ip: str, panel_domain: str, profile_name: str = ""
 ) -> dict:
@@ -77,9 +95,8 @@ def inject_direct(
             direct.append(cidr)
 
     if panel_domain:
-        for site in (f"domain:{panel_domain}", f"full:{panel_domain}"):
-            if site not in direct_sites:
-                direct_sites.append(site)
+        if panel_domain not in direct_sites:
+            direct_sites.append(panel_domain)
 
     return data
 
@@ -119,6 +136,8 @@ def normalize(data: dict) -> dict:
             if cidr not in direct:
                 direct.append(cidr)
 
+    data["DirectSites"] = sanitize_direct_sites(data.get("DirectSites", []))
+
     return data
 
 
@@ -145,6 +164,9 @@ def validate(data: dict) -> list[str]:
         None,
     ):
         errors.append(f"Unknown RouteOrder: {data.get('RouteOrder')}")
+    for site in data.get("DirectSites", []):
+        if site.startswith(("regexp:", "full:", "domain:")):
+            errors.append(f"DirectSites: unsupported entry {site}")
     return errors
 
 
