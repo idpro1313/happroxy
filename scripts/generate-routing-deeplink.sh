@@ -16,8 +16,9 @@ source "${SCRIPT_DIR}/lib/load-env.sh"
 load_env_file "${PROJECT_DIR}/.env"
 
 SERVER_IP="${SERVER_IP:-}"
-if [[ -z "${SERVER_IP}" ]]; then
-  echo "WARN: SERVER_IP not set in .env — add server IP to DirectIp manually" >&2
+PANEL_DOMAIN="${PANEL_DOMAIN:-}"
+if [[ -z "${SERVER_IP}" && -z "${PANEL_DOMAIN}" ]]; then
+  echo "WARN: SERVER_IP / PANEL_DOMAIN not set in .env" >&2
 fi
 
 build_json() {
@@ -26,15 +27,17 @@ build_json() {
     exit 1
   fi
 
-  python3 - "${ROUTING_FILE}" "${SERVER_IP}" <<'PY'
+  python3 - "${ROUTING_FILE}" "${SERVER_IP}" "${PANEL_DOMAIN}" <<'PY'
 import json
 import sys
 
-path, server_ip = sys.argv[1], sys.argv[2]
+path, server_ip, panel_domain = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path, encoding="utf-8") as f:
     data = json.load(f)
 
 direct = data.setdefault("DirectIp", [])
+direct_sites = data.setdefault("DirectSites", [])
+
 for entry in ("geoip:private", "geoip:ru"):
     if entry not in direct:
         direct.append(entry)
@@ -43,6 +46,11 @@ if server_ip:
     cidr = server_ip if "/" in server_ip else f"{server_ip}/32"
     if cidr not in direct and server_ip not in direct:
         direct.append(cidr)
+
+if panel_domain:
+    for site in (panel_domain, f"full:{panel_domain}"):
+        if site not in direct_sites:
+            direct_sites.append(site)
 
 print(json.dumps(data, separators=(",", ":"), ensure_ascii=False))
 PY
@@ -58,4 +66,7 @@ echo ""
 echo "Имя профиля (Name) в JSON должно совпадать с «Заголовок подписки»."
 if [[ -n "${SERVER_IP}" ]]; then
   echo "DirectIp включает IP сервера ${SERVER_IP}/32 — панель доступна при включённом Happ."
+fi
+if [[ -n "${PANEL_DOMAIN}" ]]; then
+  echo "DirectSites включает ${PANEL_DOMAIN} — HTTPS-панель/подписка идут мимо туннеля."
 fi

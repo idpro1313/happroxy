@@ -1,0 +1,57 @@
+# Traefik dynamic config for happroxy / 3X-UI
+#
+# Mount this file into Traefik (file provider), e.g.:
+#   /etc/traefik/dynamic/happroxy.yml
+#
+# Prerequisites:
+#   1. DNS A-record: vpn.idpro13.ru → SERVER_IP
+#   2. certResolver "letsencrypt" exists in Traefik static config
+#   3. Replace hostnames / upstream IP if needed (default: Docker host gateway)
+#
+# Upstream: 3X-UI on host ports PANEL_PORT (38471) and SUB_PORT (2096)
+
+http:
+  routers:
+    happroxy-sub:
+      rule: "Host(`vpn.idpro13.ru`) && PathPrefix(`/sub/`)"
+      entryPoints:
+        - websecure
+      service: happroxy-sub
+      tls:
+        certResolver: letsencrypt
+      priority: 20
+
+    happroxy-panel:
+      rule: "Host(`vpn.idpro13.ru`)"
+      entryPoints:
+        - websecure
+      service: happroxy-panel
+      tls:
+        certResolver: letsencrypt
+      priority: 10
+
+    happroxy-http-redirect:
+      rule: "Host(`vpn.idpro13.ru`)"
+      entryPoints:
+        - web
+      middlewares:
+        - happroxy-redirect-https
+      service: happroxy-panel
+      priority: 10
+
+  middlewares:
+    happroxy-redirect-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  services:
+    happroxy-panel:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:38471"
+
+    happroxy-sub:
+      loadBalancer:
+        servers:
+          - url: "http://172.17.0.1:2096"

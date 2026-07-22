@@ -95,13 +95,19 @@ ensure_certs() {
   fi
   [[ -n "${ip}" ]] || ip="127.0.0.1"
 
-  log "Generating self-signed certificate for ${ip}..."
+  local cn="${PANEL_DOMAIN:-${ip}}"
+  local san="IP:${ip}"
+  if [[ -n "${PANEL_DOMAIN:-}" ]]; then
+    san="DNS:${PANEL_DOMAIN},IP:${ip}"
+  fi
+
+  log "Generating self-signed certificate for ${cn}..."
   mkdir -p "${DATA_CERT_DIR}"
   openssl req -x509 -nodes -days 825 -newkey rsa:2048 \
     -keyout "${key}" \
     -out "${crt}" \
-    -subj "/CN=${ip}" \
-    -addext "subjectAltName=IP:${ip}" 2>/dev/null
+    -subj "/CN=${cn}" \
+    -addext "subjectAltName=${san}" 2>/dev/null
   chmod 600 "${key}"
 }
 
@@ -121,8 +127,11 @@ fix_subscription_settings() {
   local db="$1"
   local sub_path sub_uri
 
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/public-url.sh"
   sub_path="$(normalize_sub_path "${SUB_PATH:-/sub/family}")"
-  sub_uri="http://${SERVER_IP}:${SUB_PORT:-2096}${sub_path}"
+  sub_uri="$(build_sub_public_base)"
+  sub_uri="${sub_uri%/}/"
 
   log "Fixing subscription settings in database..."
 
@@ -222,11 +231,17 @@ main() {
   log "Starting container..."
   docker compose up -d
 
-  local panel_url="http://${SERVER_IP}:${PANEL_PORT}/"
-  local sub_base="http://${SERVER_IP}:${SUB_PORT}$(normalize_sub_path "${SUB_PATH:-/sub/family}")"
+  # shellcheck disable=SC1091
+  source "${SCRIPT_DIR}/lib/public-url.sh"
+  load_env_file "${PROJECT_DIR}/.env"
+
+  local panel_url
+  panel_url="$(build_panel_public_url)"
+  local sub_base
+  sub_base="$(build_sub_public_base)"
 
   log "Waiting for panel at ${panel_url} ..."
-  if wait_for_http "http://127.0.0.1:${PANEL_PORT}/"; then
+  if wait_for_http "http://127.0.0.1:${PANEL_PORT}/" || wait_for_http "${panel_url}"; then
     log "Panel is up."
   else
     warn "Panel not responding yet — check: docker logs happroxy_3xui --tail 30"

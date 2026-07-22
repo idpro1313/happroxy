@@ -19,7 +19,91 @@ sudo bash scripts/install.sh
 - настраивает UFW;
 - запускает `docker compose up -d`.
 
-Панель: `http://<SERVER_IP>:38471/` (по умолчанию **HTTP**, без SSL)
+Панель: `http://<SERVER_IP>:38471/` (HTTP) или `https://<PANEL_DOMAIN>/` после [перехода на HTTPS](#https-и-домен-idpro13ru)
+
+### HTTPS и домен idpro13.ru
+
+На VM уже работает **Traefik** (порты 80/443). Панель и подписка выводятся на домен через Traefik; **Let's Encrypt** — для HY2/Trojan inbounds.
+
+**Рекомендуемый поддомен:** `vpn.idpro13.ru` (основной `idpro13.ru` остаётся свободным).
+
+#### 1. DNS
+
+У регистратора домена:
+
+| Тип | Имя | Значение |
+|-----|-----|----------|
+| A | `vpn` | `31.15.19.102` (ваш `SERVER_IP`) |
+
+Проверка: `dig +short vpn.idpro13.ru` → IP сервера.
+
+#### 2. Traefik — маршруты на 3X-UI
+
+```bash
+cd /opt/happroxy
+git pull
+sudo bash scripts/setup-https.sh \
+  --domain vpn.idpro13.ru \
+  --email admin@idpro13.ru \
+  --traefik-dir /path/to/traefik/dynamic
+```
+
+Скрипт:
+- пропишет `PANEL_DOMAIN` в `.env`;
+- сгенерирует `config/traefik/happroxy.generated.yml` (прокси на `:38471` и `:2096`);
+- запросит сертификат **certbot** (для Hysteria2) и скопирует в `/opt/happdata/cert/`;
+- обновит **URI обратного прокси** в SQLite (`https://vpn.idpro13.ru/sub/family/`).
+
+Шаблон Traefik: [`config/traefik/happroxy.yml`](config/traefik/happroxy.yml).  
+Если Traefik в Docker не видит `172.17.0.1`, задайте в `.env`:
+
+```bash
+TRAEFIK_UPSTREAM_HOST=<IP-хоста с docker0>
+```
+
+Имя `certResolver` в YAML должно совпадать с вашим Traefik (по умолчанию `letsencrypt`).
+
+**Certbot webroot:** Traefik должен отдавать `http://vpn.idpro13.ru/.well-known/acme-challenge/` из `/var/www/certbot` (или укажите `CERTBOT_WEBROOT` в `.env`).
+
+#### 3. Панель 3X-UI
+
+| Поле | Значение |
+|------|----------|
+| **URI обратного прокси** | `https://vpn.idpro13.ru/sub/family/` |
+| **Прослушивание IP** | пусто |
+
+**Входящие** → у каждого подключения **Стратегия адреса** → пользовательский: `vpn.idpro13.ru`.
+
+Hysteria2 / Trojan — пути к сертификату:
+
+```
+/root/cert/fullchain.pem
+/root/cert/privkey.pem
+```
+
+(после `sudo bash scripts/sync-le-certs.sh` — настоящий LE, без `insecure` в Happ).
+
+#### 4. Happ
+
+1. Удалите старую подписку с `http://IP:...`
+2. Добавьте: `https://vpn.idpro13.ru/sub/family/<subId>`
+3. Обновите routing: `bash scripts/generate-routing-deeplink.sh` → вставить в панель → обновить подписку в Happ
+
+#### 5. Автопродление сертификатов (inbounds)
+
+```cron
+0 3 * * * root cd /opt/happroxy && certbot renew -q && bash scripts/sync-le-certs.sh && docker restart happroxy_3xui
+```
+
+Панель и подписка на HTTPS обновляются Traefik автоматически (его ACME).
+
+#### Переменные `.env`
+
+| Переменная | Пример |
+|------------|--------|
+| `PANEL_DOMAIN` | `vpn.idpro13.ru` |
+| `USE_HTTPS` | `true` |
+| `LE_CERT_DIR` | `/etc/letsencrypt/live/vpn.idpro13.ru` |
 
 ### Панель недоступна / crash loop
 
@@ -110,7 +194,7 @@ happroxy/                    # код и docker-compose (можно обновл
 | **Прослушивание IP** | **оставить пустым** (иначе bind error на публичный IP) |
 | **Порт подписки** | `2096` (внутренний, по умолчанию — не менять) |
 | **URI-путь** | `/sub/family/` (со слэшем в конце) |
-| **URI обратного прокси** | `http://<SERVER_IP>:2096/sub/family/` — публичный адрес подписки |
+| **URI обратного прокси** | `https://vpn.idpro13.ru/sub/family/` (или `http://<SERVER_IP>:2096/sub/family/` без домена) |
 | **Заголовок подписки** | `Семейный VPN` (≤25 символов, для Happ) |
 | **Интервалы обновления подписки** | `6` (часов) |
 
@@ -194,10 +278,10 @@ bash scripts/generate-routing-deeplink.sh
 Скопируйте **URL подписки** клиента (**Клиенты → Sub-ссылки** или **Подробнее** у клиента):
 
 ```
-http://<SERVER_IP>:38471/sub/family/<subId>
+https://vpn.idpro13.ru/sub/family/<subId>
 ```
 
-или через порт подписки:
+или (без домена):
 
 ```
 http://<SERVER_IP>:2096/sub/family/<subId>

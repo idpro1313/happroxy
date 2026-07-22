@@ -89,8 +89,11 @@ main() {
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/load-env.sh"
   check_file "${PROJECT_DIR}/scripts/lib/data-dir.sh"
   check_bash_syntax "${PROJECT_DIR}/scripts/lib/data-dir.sh"
+  check_file "${PROJECT_DIR}/scripts/lib/public-url.sh"
+  check_bash_syntax "${PROJECT_DIR}/scripts/lib/public-url.sh"
+  check_file "${PROJECT_DIR}/config/traefik/happroxy.yml"
 
-  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client; do
+  for s in install configure-firewall backup update healthcheck acceptance-test generate-routing-deeplink validate repair-panel diagnose-client setup-https sync-le-certs; do
     check_file "${PROJECT_DIR}/scripts/${s}.sh"
     check_bash_syntax "${PROJECT_DIR}/scripts/${s}.sh"
   done
