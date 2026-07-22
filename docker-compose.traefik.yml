@@ -1,0 +1,34 @@
+# Traefik overlay — use when PANEL_DOMAIN is set and Traefik uses Docker provider.
+#
+# Your Traefik: network=web, certresolver=le, project reverse-proxy
+#
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+#
+services:
+  3xui:
+    networks:
+      - default
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+
+      # Subscription (higher priority)
+      - traefik.http.routers.happroxy-sub.rule=Host(`${PANEL_DOMAIN}`) && PathPrefix(`/sub/`)
+      - traefik.http.routers.happroxy-sub.entrypoints=websecure
+      - traefik.http.routers.happroxy-sub.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}
+      - traefik.http.routers.happroxy-sub.priority=20
+      - traefik.http.routers.happroxy-sub.service=happroxy-sub
+      - traefik.http.services.happroxy-sub.loadbalancer.server.port=${SUB_PORT:-2096}
+
+      # Panel (HTTP redirect web→websecure already global in your Traefik)
+      - traefik.http.routers.happroxy-panel.rule=Host(`${PANEL_DOMAIN}`)
+      - traefik.http.routers.happroxy-panel.entrypoints=websecure
+      - traefik.http.routers.happroxy-panel.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}
+      - traefik.http.routers.happroxy-panel.priority=10
+      - traefik.http.routers.happroxy-panel.service=happroxy-panel
+      - traefik.http.services.happroxy-panel.loadbalancer.server.port=${PANEL_PORT:-38471}
+
+networks:
+  web:
+    external: true

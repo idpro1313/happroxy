@@ -18,14 +18,16 @@ usage() {
 Usage: sudo bash scripts/setup-https.sh [options]
 
 Options:
-  --domain NAME     Public FQDN (default: vpn.idpro13.ru or PANEL_DOMAIN from .env)
-  --email ADDR      Let's Encrypt contact email (required for certbot)
-  --skip-certbot    Only update .env + panel DB; Traefik handles TLS for panel/sub
-  --skip-traefik    Do not print/install Traefik dynamic config
-  --traefik-dir DIR Copy config/traefik/happroxy.yml to DIR (Traefik file provider)
+  --domain NAME       Public FQDN (default: vpn.idpro13.ru)
+  --email ADDR        Let's Encrypt email (certbot only; Traefik already uses idpro13@gmail.com)
+  --docker-labels     Use docker-compose.traefik.yml (default for Docker-provider Traefik)
+  --file-provider     Generate file config instead of Docker labels
+  --skip-certbot      Skip certbot (default with --docker-labels; use sync-traefik-certs.sh)
+  --skip-traefik      Only update .env + panel DB
+  --traefik-dir DIR   Copy file config to DIR (with --file-provider)
 
-Example:
-  sudo bash scripts/setup-https.sh --domain vpn.idpro13.ru --email admin@idpro13.ru
+Example (your Traefik at /opt/webserver/reverse-proxy):
+  sudo bash scripts/setup-https.sh --domain vpn.idpro13.ru --docker-labels
 EOF
 }
 
@@ -60,7 +62,15 @@ update_env_domain() {
 
   set_kv "PANEL_DOMAIN" "${domain}"
   set_kv "USE_HTTPS" "true"
+  set_kv "TRAEFIK_CERT_RESOLVER" "${TRAEFIK_CERT_RESOLVER:-le}"
+  set_kv "TRAEFIK_ACME_FILE" "${TRAEFIK_ACME_FILE:-/opt/webserver/traefikdata/letsencrypt/acme.json}"
   log "Updated .env: PANEL_DOMAIN=${domain}, USE_HTTPS=true"
+}
+
+apply_traefik_docker_labels() {
+  log "Applying Traefik Docker labels (network web, certresolver le)..."
+  docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+  log "Container joined network 'web'. Traefik will pick up labels automatically."
 }
 
 render_traefik_config() {
@@ -104,10 +114,13 @@ main() {
   cd "${PROJECT_DIR}"
 
   local domain="" email="" skip_certbot=false skip_traefik=false traefik_dir=""
+  local use_docker_labels=true use_file_provider=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --domain) domain="$2"; shift 2 ;;
       --email) email="$2"; shift 2 ;;
+      --docker-labels) use_docker_labels=true; skip_certbot=true; shift ;;
+      --file-provider) use_file_provider=true; use_docker_labels=false; shift ;;
       --skip-certbot) skip_certbot=true; shift ;;
       --skip-traefik) skip_traefik=true; shift ;;
       --traefik-dir) traefik_dir="$2"; shift 2 ;;
@@ -115,6 +128,11 @@ main() {
       *) die "Unknown option: $1" ;;
     esac
   done
+
+  # Default: Docker-provider Traefik (no certbot)
+  if [[ "${use_file_provider}" != "true" ]]; then
+    skip_certbot=true
+  fi
 
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/load-env.sh"
@@ -129,27 +147,24 @@ main() {
 
   update_env_domain "${domain}"
 
-  local upstream="${TRAEFIK_UPSTREAM_HOST:-172.17.0.1}"
+  local upstream="${TRAEFIK_UPSTREAM_HOST:-172.18.0.1}"
   local panel_port="${PANEL_PORT:-38471}"
   local sub_port="${SUB_PORT:-2096}"
 
   if [[ "${skip_traefik}" != "true" ]]; then
-    local generated
-    generated="$(render_traefik_config "${domain}" "${panel_port}" "${sub_port}" "${upstream}")"
-    log "Generated Traefik config: ${generated}"
-    log ""
-    log "Add to Traefik file provider (adjust certResolver name if not 'letsencrypt'):"
-    log "  ${generated}"
-    if [[ -n "${traefik_dir}" ]]; then
-      mkdir -p "${traefik_dir}"
-      cp "${generated}" "${traefik_dir}/happroxy.yml"
-      log "Copied to ${traefik_dir}/happroxy.yml — reload Traefik."
+    if [[ "${use_docker_labels}" == "true" ]]; then
+      apply_traefik_docker_labels
     else
-      log "Or: sudo bash scripts/setup-https.sh --traefik-dir /path/to/traefik/dynamic"
+      local generated
+      generated="$(render_traefik_config "${domain}" "${panel_port}" "${sub_port}" "${upstream}")"
+      log "Generated Traefik file config: ${generated}"
+      log "Your Traefik uses Docker provider only — prefer --docker-labels instead."
+      if [[ -n "${traefik_dir}" ]]; then
+        mkdir -p "${traefik_dir}"
+        cp "${generated}" "${traefik_dir}/happroxy.yml"
+        log "Copied to ${traefik_dir}/happroxy.yml"
+      fi
     fi
-    log ""
-    log "If Traefik runs in Docker and 172.17.0.1 fails, set in .env:"
-    log "  TRAEFIK_UPSTREAM_HOST=<host-gateway-IP>"
   fi
 
   if [[ "${skip_certbot}" != "true" ]]; then
@@ -162,6 +177,12 @@ main() {
 
   log "Updating 3X-UI subscription settings (HTTPS subURI)..."
   bash "${SCRIPT_DIR}/repair-panel.sh"
+
+  if [[ "${use_docker_labels}" == "true" && "${skip_traefik}" != "true" ]]; then
+    log "Waiting for Traefik LE cert (open https://${domain}/ in browser if this fails)..."
+    sleep 5
+    bash "${SCRIPT_DIR}/sync-traefik-certs.sh" || warn "Run later: sudo bash scripts/sync-traefik-certs.sh (after first HTTPS request)"
+  fi
 
   # shellcheck disable=SC1091
   source "${SCRIPT_DIR}/lib/public-url.sh"
@@ -176,14 +197,15 @@ Panel:        $(build_panel_public_url)
 Subscription: $(build_sub_public_base)<subId>
 
 Manual steps:
-  1. Traefik: deploy dynamic config and reload (see above)
-  2. DNS: A-record ${domain} → ${SERVER_IP}
+  1. DNS: A-record ${domain} → ${SERVER_IP}
+  2. Open https://${domain}/ — Traefik requests LE certificate (tlsChallenge)
   3. Панель → Подписка → URI обратного прокси = $(build_sub_public_base)
-  4. Входящие → Стратегия адреса → пользовательский: ${domain}
-  5. Happ: удалите старую подписку, добавьте новый HTTPS URL, обновите routing:
-       bash scripts/generate-routing-deeplink.sh
-  6. Cert renewal cron (inbounds):
-       0 3 * * * root cd /opt/happroxy && certbot renew -q && bash scripts/sync-le-certs.sh && docker restart happroxy_3xui
+  4. Входящие → Стратегия адреса → ${domain}
+  5. HY2 certs: sudo bash scripts/sync-traefik-certs.sh && docker restart happroxy_3xui
+  6. Happ: новая подписка $(build_sub_public_base)<subId>, затем generate-routing-deeplink.sh
+
+Traefik: Docker labels via docker-compose.traefik.yml, network web, certresolver le.
+HTTP→HTTPS redirect already configured in your Traefik entrypoint web.
 ================================================================================
 
 EOF

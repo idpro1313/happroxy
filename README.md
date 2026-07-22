@@ -37,33 +37,41 @@ sudo bash scripts/install.sh
 
 Проверка: `dig +short vpn.idpro13.ru` → IP сервера.
 
-#### 2. Traefik — маршруты на 3X-UI
+#### 2. Traefik — Docker labels (ваша конфигурация)
+
+Ваш Traefik (`/opt/webserver/reverse-proxy`):
+- сеть **`web`**, resolver **`le`**, TLS challenge
+- только **Docker provider** (file provider не нужен)
 
 ```bash
 cd /opt/happroxy
 git pull
-sudo bash scripts/setup-https.sh \
-  --domain vpn.idpro13.ru \
-  --email admin@idpro13.ru \
-  --traefik-dir /path/to/traefik/dynamic
+
+# DNS: A vpn.idpro13.ru → SERVER_IP
+
+sudo bash scripts/setup-https.sh --domain vpn.idpro13.ru --docker-labels
 ```
 
 Скрипт:
 - пропишет `PANEL_DOMAIN` в `.env`;
-- сгенерирует `config/traefik/happroxy.generated.yml` (прокси на `:38471` и `:2096`);
-- запросит сертификат **certbot** (для Hysteria2) и скопирует в `/opt/happdata/cert/`;
-- обновит **URI обратного прокси** в SQLite (`https://vpn.idpro13.ru/sub/family/`).
+- подключит контейнер к сети `web` с labels ([`docker-compose.traefik.yml`](docker-compose.traefik.yml));
+- обновит **URI обратного прокси** → `https://vpn.idpro13.ru/sub/family/`;
+- попытается скопировать LE-сертификат из `acme.json` для Hysteria2.
 
-Шаблон Traefik: [`config/traefik/happroxy.yml`](config/traefik/happroxy.yml).  
-Если Traefik в Docker не видит `172.17.0.1`, задайте в `.env`:
+Откройте **`https://vpn.idpro13.ru/`** — Traefik выпустит сертификат. Затем:
 
 ```bash
-TRAEFIK_UPSTREAM_HOST=<IP-хоста с docker0>
+sudo bash scripts/sync-traefik-certs.sh
+docker restart happroxy_3xui
 ```
 
-Имя `certResolver` в YAML должно совпадать с вашим Traefik (по умолчанию `letsencrypt`).
+Ручной перезапуск с Traefik overlay:
 
-**Certbot webroot:** Traefik должен отдавать `http://vpn.idpro13.ru/.well-known/acme-challenge/` из `/var/www/certbot` (или укажите `CERTBOT_WEBROOT` в `.env`).
+```bash
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+```
+
+Альтернатива (file provider, если добавите `--providers.file` в Traefik): [`config/traefik/happroxy.yml`](config/traefik/happroxy.yml), resolver `le`, upstream `172.18.0.1`.
 
 #### 3. Панель 3X-UI
 
@@ -89,10 +97,10 @@ Hysteria2 / Trojan — пути к сертификату:
 2. Добавьте: `https://vpn.idpro13.ru/sub/family/<subId>`
 3. Обновите routing: `bash scripts/generate-routing-deeplink.sh` → вставить в панель → обновить подписку в Happ
 
-#### 5. Автопродление сертификатов (inbounds)
+#### 5. Автопродление (inbounds, из Traefik acme.json)
 
 ```cron
-0 3 * * * root cd /opt/happroxy && certbot renew -q && bash scripts/sync-le-certs.sh && docker restart happroxy_3xui
+0 4 * * * root cd /opt/happroxy && bash scripts/sync-traefik-certs.sh && docker restart happroxy_3xui
 ```
 
 Панель и подписка на HTTPS обновляются Traefik автоматически (его ACME).

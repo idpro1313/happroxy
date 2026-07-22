@@ -18,7 +18,7 @@ http:
         - websecure
       service: happroxy-sub
       tls:
-        certResolver: letsencrypt
+        certResolver: le
       priority: 20
 
     happroxy-panel:
@@ -27,7 +27,7 @@ http:
         - websecure
       service: happroxy-panel
       tls:
-        certResolver: letsencrypt
+        certResolver: le
       priority: 10
 
     happroxy-http-redirect:
