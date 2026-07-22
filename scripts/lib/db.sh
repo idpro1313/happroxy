@@ -73,31 +73,63 @@ raise SystemExit(1)
 PY
 }
 
-decode_subscription_body() {
-  python3 - <<'PY'
+decode_subscription_file() {
+  local file="$1"
+  [[ -s "${file}" ]] || return 1
+  python3 - "${file}" <<'PY'
 import base64
 import sys
 
-raw = sys.stdin.read().strip()
-if not raw:
+
+def decode_blob(raw: str) -> str:
+    raw = raw.strip()
+    if not raw:
+        return ""
+    first = raw.splitlines()[0]
+    if "://" in first:
+        return raw
+    for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+        for src in (raw, raw + "=" * (-len(raw) % 4)):
+            try:
+                return decoder(src).decode("utf-8", errors="replace")
+            except Exception:
+                pass
+    return raw
+
+
+def decode_subscription(text: str) -> str:
+    text = text.strip()
+    if not text:
+        return ""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if len(lines) <= 1:
+        return decode_blob(text)
+    out = []
+    for line in lines:
+        dec = decode_blob(line)
+        if dec:
+            out.append(dec)
+    return "\n".join(out) if out else decode_blob(text)
+
+
+path = sys.argv[1]
+with open(path, encoding="utf-8", errors="replace") as fh:
+    body = fh.read()
+
+decoded = decode_subscription(body)
+if not decoded.strip():
     raise SystemExit(1)
-
-# Plain text subscription (one link per line)
-if "://" in raw.splitlines()[0]:
-    print(raw)
-    raise SystemExit(0)
-
-# Base64 (standard or url-safe, with or without padding)
-for decoder in (base64.b64decode, base64.urlsafe_b64decode):
-    for src in (raw, raw + "=" * (-len(raw) % 4)):
-        try:
-            print(decoder(src).decode("utf-8", errors="replace"))
-            raise SystemExit(0)
-        except Exception:
-            pass
-
-print(raw)
+print(decoded, end="")
 PY
+}
+
+decode_subscription_body() {
+  local tmp="/tmp/happroxy_sub_decode_$$.txt"
+  cat > "${tmp}"
+  decode_subscription_file "${tmp}"
+  local rc=$?
+  rm -f "${tmp}"
+  return "${rc}"
 }
 
 # Fetch subscription body; prints body to stdout, returns 0 on success.
@@ -161,11 +193,13 @@ fetch_subscription_raw() {
     SUB_FETCH_CODE="${code}"
     if [[ "${code}" == "200" && -s "${body_file}" ]]; then
       if grep -q '://' "${body_file}" 2>/dev/null; then
+        printf '%s' "${url}" > /tmp/happroxy_sub_url.txt
         cat "${body_file}"
         return 0
       fi
       # Accept base64 subscription without plain :// on first line
       if [[ "$(wc -c < "${body_file}")" -gt 20 ]]; then
+        printf '%s' "${url}" > /tmp/happroxy_sub_url.txt
         cat "${body_file}"
         return 0
       fi
@@ -174,10 +208,4 @@ fetch_subscription_raw() {
 
   SUB_FETCH_CODE="${SUB_FETCH_CODE:-000}"
   return 1
-}
-
-decode_subscription_file() {
-  local file="$1"
-  [[ -s "${file}" ]] || return 1
-  decode_subscription_body < "${file}"
 }

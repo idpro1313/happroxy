@@ -159,7 +159,7 @@ Next steps:
   2. bash scripts/diagnose-client.sh   — expect vless:// in subscription
   3. If subscription empty: sudo bash scripts/repair-panel.sh
   4. Refresh subscription in Happ → connect via VLESS (not SS)
-  4. When all devices OK:
+  5. When all devices OK:
        bash scripts/generate-crypto-subscription.sh
        sudo bash scripts/migrate-phase2.sh --dry-run
        sudo bash scripts/migrate-phase2.sh --apply

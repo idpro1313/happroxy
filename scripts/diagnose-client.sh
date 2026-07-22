@@ -113,7 +113,7 @@ check_subscription() {
 
   printf '%s' "${raw}" > "${body_file}"
   if ! decoded="$(decode_subscription_file "${body_file}" 2>/dev/null)"; then
-    fail "Subscription response not decodable (${#raw} bytes from ${SUB_FETCH_URL:-?})"
+    fail "Subscription response not decodable (${#raw} bytes from $(cat /tmp/happroxy_sub_url.txt 2>/dev/null || echo '?'))"
     log "Preview: $(head -c 120 "${body_file}" | tr '\n' ' ')"
     return
   fi
