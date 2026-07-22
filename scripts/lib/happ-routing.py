@@ -31,14 +31,14 @@ REQUIRED_STRING_FIELDS = (
 
 BOOL_FIELDS = ("GlobalProxy", "FakeDNS", "UseChunkFiles")
 
-PRIVATE_CIDRS = (
-    "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
-    "169.254.0.0/16",
-    "224.0.0.0/4",
-    "255.255.255.255",
+# Happ profile mapped from runetfreedom all_except_ru.json (v2rayN rules → Direct/Block lists).
+# https://github.com/runetfreedom/russia-v2ray-custom-routing-list/tree/main/v2rayN
+RUNETFREEDOM_DIRECT_SITES = (
+    "geosite:private",
+    "geosite:ru-available-only-inside",
 )
+RUNETFREEDOM_DIRECT_IP = ("geoip:private", "geoip:ru")
+RUNETFREEDOM_BLOCK_SITES = ("geosite:category-ads-all",)
 
 
 def as_bool(value: object, default: bool = False) -> bool:
@@ -80,14 +80,19 @@ def inject_direct(
 
     direct = data.setdefault("DirectIp", [])
     direct_sites = data.setdefault("DirectSites", [])
+    block_sites = data.setdefault("BlockSites", [])
 
-    for entry in ("geoip:ru",):
+    for entry in RUNETFREEDOM_DIRECT_IP:
         if entry not in direct:
             direct.append(entry)
 
-    for cidr in PRIVATE_CIDRS:
-        if cidr not in direct:
-            direct.append(cidr)
+    for entry in RUNETFREEDOM_DIRECT_SITES:
+        if entry not in direct_sites:
+            direct_sites.append(entry)
+
+    for entry in RUNETFREEDOM_BLOCK_SITES:
+        if entry not in block_sites:
+            block_sites.append(entry)
 
     if server_ip:
         cidr = server_ip if "/" in server_ip else f"{server_ip}/32"
@@ -110,15 +115,16 @@ def normalize(data: dict) -> dict:
     data.setdefault("RemoteDNSType", "DoH")
     data.setdefault("RemoteDNSDomain", "https://cloudflare-dns.com/dns-query")
     data.setdefault("RemoteDNSIP", "1.1.1.1")
-    data.setdefault("DomesticDNSType", "DoH")
-    data.setdefault("DomesticDNSDomain", "https://dns.google/dns-query")
-    data.setdefault("DomesticDNSIP", "8.8.8.8")
+    data.setdefault("DomesticDNSType", "DoU")
+    data.setdefault("DomesticDNSDomain", "")
+    data.setdefault("DomesticDNSIP", "77.88.8.8")
     data.setdefault("Geoipurl", GEOIP_URL)
     data.setdefault("Geositeurl", GEOSITE_URL)
     data.setdefault(
         "DnsHosts",
-        {"cloudflare-dns.com": "1.1.1.1", "dns.google": "8.8.8.8"},
+        {"cloudflare-dns.com": "1.1.1.1"},
     )
+    data.setdefault("DomainStrategy", "IPOnDemand")
     data.setdefault("RouteOrder", "block-proxy-direct")
     data.setdefault("LastUpdated", "")
 
@@ -129,13 +135,6 @@ def normalize(data: dict) -> dict:
         default = key != "FakeDNS"
         data[key] = as_bool(data.get(key), default=default)
 
-    direct = data.setdefault("DirectIp", [])
-    if "geoip:private" in direct:
-        direct.remove("geoip:private")
-        for cidr in PRIVATE_CIDRS:
-            if cidr not in direct:
-                direct.append(cidr)
-
     data["DirectSites"] = sanitize_direct_sites(data.get("DirectSites", []))
 
     return data
@@ -144,7 +143,9 @@ def normalize(data: dict) -> dict:
 def validate(data: dict) -> list[str]:
     errors: list[str] = []
     for key in REQUIRED_STRING_FIELDS:
-        if not data.get(key):
+        if key not in data or data[key] is None:
+            errors.append(f"Missing field: {key}")
+        elif key != "DomesticDNSDomain" and not data.get(key):
             errors.append(f"Missing or empty field: {key}")
     for key in BOOL_FIELDS:
         if not isinstance(data.get(key), bool):

@@ -263,7 +263,17 @@ bash scripts/generate-crypto-subscription.sh
 
 ## Маршрутизация (RU)
 
-Шаблон: `[config/happ-routing.json](config/happ-routing.json)` — RU/private напрямую, остальное через VPN. Формат соответствует [официальной схеме Happ](https://www.happ.su/main/dev-docs/routing).
+Шаблон: `[config/happ-routing.json](config/happ-routing.json)` — **всё через VPN, кроме РФ** (логика как [runetfreedom/all_except_ru.json](https://github.com/runetfreedom/russia-v2ray-custom-routing-list/blob/main/v2rayN/all_except_ru.json), но в [формате Happ](https://www.happ.su/main/dev-docs/routing)).
+
+> JSON из v2rayN **нельзя** вставить в Happ напрямую — другая схема. Скрипт переводит правила в `DirectSites` / `DirectIp` / `BlockSites`.
+
+| Направмую (direct) | Через VPN (proxy) | Блок |
+|---|---|---|
+| `geoip:private`, `geoip:ru` | остальной трафик | `geosite:category-ads-all` |
+| `geosite:private`, `geosite:ru-available-only-inside` | | |
+| IP/домен сервера (из `.env`) | | |
+
+DNS: туннель → Cloudflare DoH; локальный (RU) → Yandex `77.88.8.8`. `DomainStrategy`: `IPOnDemand`.
 
 ```bash
 bash scripts/generate-routing-deeplink.sh --validate   # проверка JSON
