@@ -285,7 +285,36 @@ bash scripts/generate-routing-deeplink.sh --print-json   # отладка
 
 `Name` **обязан** совпадать с **Заголовок подписки** в 3X-UI (по умолчанию «Семейный VPN»).
 
-После импорта: **Reconnect** VPN; при первом запуске Happ скачивает geoip/geosite (до ~3 мин). Если профиль с красным значком — дождитесь загрузки или удалите старый профиль и импортируйте ссылку заново.
+После импорта: **Reconnect** VPN; Happ скачивает geoip/geosite (до ~3 мин).
+
+### Geo-файлы не качаются (красный профиль)
+
+GitHub `releases/latest` часто **блокируется или обрывается** из РФ. Варианты (от лучшего):
+
+**1. Self-host с вашего сервера** (надёжнее всего — домен уже в direct):
+
+```bash
+sudo bash scripts/sync-geo-files.sh
+docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+bash scripts/generate-routing-deeplink.sh   # подставит https://<PANEL_DOMAIN>/geo/*.dat
+```
+
+Проверка: `curl -I https://<PANEL_DOMAIN>/geo/geoip.dat` → `200`, размер ~19 MB.
+
+**2. jsDelivr CDN** (уже в `.env.example` по умолчанию):
+
+```env
+GEOIP_URL=https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat
+GEOSITE_URL=https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat
+```
+
+**3. Встроенные geo Happ** (без загрузки, может быть старее):
+
+```env
+GEO_USE_BUILTIN=true
+```
+
+После любого изменения — **новый** deeplink, удалить старый профиль маршрутизации в Happ, **Reconnect**.
 
 ---
 
@@ -313,6 +342,7 @@ bash scripts/generate-routing-deeplink.sh --print-json   # отладка
 | `show-urls.sh`                 | Panel + subscription URL (webBasePath)          |
 | `verify-traefik.sh`            | Labels, сеть `web`, правила Traefik             |
 | `generate-routing-deeplink.sh` | Happ routing deeplink                           |
+| `sync-geo-files.sh`            | Скачать geoip/geosite на сервер для `/geo/`     |
 | `diagnose-client.sh`           | Нет интернета на клиенте                        |
 | `sync-traefik-certs.sh`        | LE из acme.json → `/opt/happdata/cert/`         |
 | `healthcheck.sh`               | Порты, контейнер, подписка                      |

@@ -10,10 +10,10 @@ from pathlib import Path
 
 
 GEOIP_URL = (
-    "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat"
+    "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat"
 )
 GEOSITE_URL = (
-    "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat"
+    "https://cdn.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat"
 )
 
 REQUIRED_STRING_FIELDS = (
@@ -106,6 +106,23 @@ def inject_direct(
     return data
 
 
+def apply_geo_urls(
+    data: dict,
+    geoip_url: str = "",
+    geosite_url: str = "",
+    geo_builtin: bool = False,
+) -> dict:
+    if geo_builtin:
+        data["Geoipurl"] = ""
+        data["Geositeurl"] = ""
+        return data
+    if geoip_url:
+        data["Geoipurl"] = geoip_url
+    if geosite_url:
+        data["Geositeurl"] = geosite_url
+    return data
+
+
 def normalize(data: dict) -> dict:
     """Ensure Happ-compatible DNS / geo fields (drop legacy keys)."""
     data.pop("RemoteDns", None)
@@ -145,7 +162,9 @@ def validate(data: dict) -> list[str]:
     for key in REQUIRED_STRING_FIELDS:
         if key not in data or data[key] is None:
             errors.append(f"Missing field: {key}")
-        elif key != "DomesticDNSDomain" and not data.get(key):
+        elif key in ("DomesticDNSDomain", "Geoipurl", "Geositeurl"):
+            continue
+        elif not data.get(key):
             errors.append(f"Missing or empty field: {key}")
     for key in BOOL_FIELDS:
         if not isinstance(data.get(key), bool):
@@ -184,14 +203,26 @@ def main() -> int:
         default="",
         help="Override Name (must match subscription title in Happ)",
     )
+    parser.add_argument("--geoip-url", default="", help="Override Geoipurl")
+    parser.add_argument("--geosite-url", default="", help="Override Geositeurl")
+    parser.add_argument(
+        "--geo-builtin",
+        action="store_true",
+        help="Use Happ built-in geo files (empty Geoipurl/Geositeurl)",
+    )
     args = parser.parse_args()
 
     data = normalize(
-        inject_direct(
-            load_template(args.template),
-            args.server_ip,
-            args.panel_domain,
-            args.profile_name,
+        apply_geo_urls(
+            inject_direct(
+                load_template(args.template),
+                args.server_ip,
+                args.panel_domain,
+                args.profile_name,
+            ),
+            args.geoip_url,
+            args.geosite_url,
+            args.geo_builtin,
         )
     )
     errors = validate(data)
