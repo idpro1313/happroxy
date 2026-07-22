@@ -147,6 +147,18 @@ main() {
   done
 
   check_json "${PROJECT_DIR}/config/happ-routing.json"
+  check_file "${PROJECT_DIR}/scripts/lib/happ-routing.py"
+  if python3 -m py_compile "${PROJECT_DIR}/scripts/lib/happ-routing.py" 2>/dev/null; then
+    log "OK python: scripts/lib/happ-routing.py"
+  else
+    fail "Python syntax error: scripts/lib/happ-routing.py"
+  fi
+  if python3 "${PROJECT_DIR}/scripts/lib/happ-routing.py" \
+      "${PROJECT_DIR}/config/happ-routing.json" "" "" --validate-only >/dev/null 2>&1; then
+    log "OK happ-routing.json Happ schema"
+  else
+    fail "happ-routing.json failed Happ schema validation"
+  fi
   check_env_example
   check_reserved_ports
 

@@ -263,15 +263,19 @@ bash scripts/generate-crypto-subscription.sh
 
 ## Маршрутизация (RU)
 
-Шаблон: `[config/happ-routing.json](config/happ-routing.json)` — RU/private напрямую, остальное через VPN.
+Шаблон: `[config/happ-routing.json](config/happ-routing.json)` — RU/private напрямую, остальное через VPN. Формат соответствует [официальной схеме Happ](https://www.happ.su/main/dev-docs/routing).
 
 ```bash
-bash scripts/generate-routing-deeplink.sh
+bash scripts/generate-routing-deeplink.sh --validate   # проверка JSON
+bash scripts/generate-routing-deeplink.sh              # deeplink
+bash scripts/generate-routing-deeplink.sh --print-json   # отладка
 ```
 
-Вставьте `happ://routing/add/...` в **Подписка → Правила маршрутизации**. Скрипт добавляет `SERVER_IP/32` и `<PANEL_DOMAIN>` в direct (панель доступна при включённом Happ).
+Вставьте `happ://routing/add/...` в **Подписка → Правила маршрутизации**. Скрипт подставляет из `.env`: `SERVER_IP/32`, `<PANEL_DOMAIN>`, **`SUB_PROFILE_TITLE` → поле `Name`**.
 
-`Name` в JSON = **Заголовок подписки** в панели.
+`Name` **обязан** совпадать с **Заголовок подписки** в 3X-UI (по умолчанию «Семейный VPN»).
+
+После импорта: **Reconnect** VPN; при первом запуске Happ скачивает geoip/geosite (до ~3 мин). Если профиль с красным значком — дождитесь загрузки или удалите старый профиль и импортируйте ссылку заново.
 
 ---
 
